@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "threemica"
+version = "0.1.0"
+description = "Three.js HTML reports for MicaPipe surface maps"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "zhengchencai" }]
+dependencies = [
+    "nibabel>=5",
+    "numpy>=1.23",
+    "pandas>=2",
+    "questionary>=2",
+    "rich>=13",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "pytest-mock>=3"]
+
+[project.scripts]
+threemica = "threemica.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"threemica" = ["viewer/*", "data/**/*"]
