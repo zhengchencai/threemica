@@ -3,3 +3,7 @@
 __version__ = "0.1.0"
 
 __all__ = ["__version__"]
+
+from threemica.core import ResolvedRoot, resolve_micapipe_root
+
+__all__ += ["ResolvedRoot", "resolve_micapipe_root"]
