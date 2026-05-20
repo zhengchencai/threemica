@@ -79,3 +79,72 @@ def resolve_micapipe_root(path: "str | Path | None" = None) -> ResolvedRoot:
 
 
 __all__ = ["ResolvedRoot", "resolve_micapipe_root"]
+
+
+# ---------------------------------------------------------------------------
+# FeatureMap dataclass + scan()
+# ---------------------------------------------------------------------------
+
+_MAP_FNAME_RE = re.compile(
+    r"^sub-[^_]+(?:_ses-[^_]+)?"
+    r"_hemi-(?P<hemi>[LR])"
+    r"_surf-(?P<res>fsLR-5k|fsLR-32k)"
+    r"_label-(?P<label>[^.]+)\.func\.gii$"
+)
+
+
+@dataclass(frozen=True)
+class FeatureMap:
+    """A LH/RH paired surface map at one resolution."""
+
+    label: str
+    resolution: str
+    lh_path: Path
+    rh_path: Path
+
+
+def _scan_maps_dir(maps_dir: Path) -> list[FeatureMap]:
+    """Return both-hemi FeatureMaps found in a single maps/ directory."""
+    if not maps_dir.is_dir():
+        return []
+    by_key: dict[tuple, dict] = {}
+    for f in sorted(maps_dir.iterdir()):
+        m = _MAP_FNAME_RE.match(f.name)
+        if not m:
+            continue
+        key = (m.group("label"), m.group("res"))
+        by_key.setdefault(key, {})[m.group("hemi")] = f.resolve()
+    out: list[FeatureMap] = []
+    for (label, res), hemis in sorted(by_key.items()):
+        if "L" in hemis and "R" in hemis:
+            out.append(
+                FeatureMap(
+                    label=label,
+                    resolution=res,
+                    lh_path=hemis["L"],
+                    rh_path=hemis["R"],
+                )
+            )
+    return out
+
+
+def scan(subject_dir: str | Path) -> dict[Optional[str], list[FeatureMap]]:
+    """Scan one MicaPipe subject directory. Returns {session_or_None: [FeatureMap]}.
+
+    Detects ses-* subdirectories. If absent, returns {None: [...]} for the
+    single-session case.
+    """
+    sub_dir = Path(subject_dir).resolve()
+    if not sub_dir.is_dir():
+        raise FileNotFoundError(f"Subject directory does not exist: {sub_dir}")
+
+    sessions = sorted(
+        d.name for d in sub_dir.iterdir() if d.is_dir() and _SES_RE.match(d.name)
+    )
+
+    if not sessions:
+        return {None: _scan_maps_dir(sub_dir / "maps")}
+    return {ses: _scan_maps_dir(sub_dir / ses / "maps") for ses in sessions}
+
+
+__all__ += ["FeatureMap", "scan"]
