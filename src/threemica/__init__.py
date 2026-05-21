@@ -15,3 +15,7 @@ __all__ += ["FeatureMap", "scan"]
 from threemica.core import build
 
 __all__ += ["build"]
+
+from threemica.core import run
+
+__all__ += ["run"]

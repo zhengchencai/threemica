@@ -265,3 +265,102 @@ def build(
 
 
 __all__ += ["build"]
+
+
+def _select_maps_for(
+    available: List[FeatureMap], labels: List[str], resolution: str
+) -> List[FeatureMap]:
+    """Pick FeatureMaps whose label is in `labels` AND whose resolution matches."""
+    wanted = set(labels)
+    return [m for m in available if m.label in wanted and m.resolution == resolution]
+
+
+def run(
+    micapipe_root: "str | Path | None" = None,
+    *,
+    subjects: Optional[List[str]] = None,
+    sessions: Optional[List[str]] = None,
+    maps: Optional[List[str]] = None,
+    resolution: Optional[str] = None,
+    surface_type: str = "individual",
+    out_dir: Optional[Path] = None,
+    interactive: bool = True,
+) -> List[Path]:
+    """End-to-end flow: resolve root → scan → (pick) → build.
+
+    interactive=False is the scripted entry point; requires `subjects`,
+    `maps`, and `resolution`. interactive=True opens questionary pickers
+    for whatever is None (implemented in Task 9).
+    """
+    resolved = resolve_micapipe_root(micapipe_root)
+    mp_root = resolved.root
+
+    if not interactive:
+        if not subjects:
+            raise ValueError("subjects is required when interactive=False")
+        if not maps:
+            raise ValueError("maps is required when interactive=False")
+        if not resolution:
+            raise ValueError("resolution is required when interactive=False")
+        return _run_scripted(
+            mp_root=mp_root,
+            subjects=subjects,
+            sessions=sessions,
+            map_labels=maps,
+            resolution=resolution,
+            surface_type=surface_type,
+            out_dir=out_dir,
+        )
+
+    return _run_interactive(
+        resolved=resolved,
+        subjects=subjects,
+        sessions=sessions,
+        map_labels=maps,
+        resolution=resolution,
+        surface_type=surface_type,
+        out_dir=out_dir,
+    )
+
+
+def _run_scripted(
+    *,
+    mp_root: Path,
+    subjects: List[str],
+    sessions: Optional[List[str]],
+    map_labels: List[str],
+    resolution: str,
+    surface_type: str,
+    out_dir: Optional[Path],
+) -> List[Path]:
+    outputs: List[Path] = []
+    for sub in subjects:
+        sub_dir = mp_root / sub
+        if not sub_dir.is_dir():
+            continue
+        per_session = scan(sub_dir)
+        for ses, available in per_session.items():
+            if sessions is not None and ses not in sessions:
+                continue
+            picked = _select_maps_for(available, map_labels, resolution)
+            if not picked:
+                continue
+            outputs.append(
+                build(
+                    subject_dir=sub_dir,
+                    session=ses,
+                    maps=picked,
+                    resolution=resolution,
+                    surface_type=surface_type,
+                    out_dir=out_dir,
+                )
+            )
+    return outputs
+
+
+def _run_interactive(**_kwargs) -> List[Path]:
+    """Placeholder — implemented in Task 9."""
+    raise NotImplementedError("interactive=True is implemented in Task 9")
+
+
+__all__ += ["run"]
