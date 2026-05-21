@@ -326,7 +326,7 @@ function onKeyDown(e) {
   }
   if (k === 'h' || k === 'H') {
     const modal = document.getElementById('help-modal');
-    if (modal) modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
+    if (modal) modal.classList.toggle('visible');
   }
   if (k === 'o' || k === 'O') {
     cortexOpacity = (cortexOpacity >= 0.99) ? REDUCED_OPACITY : 1.0;
