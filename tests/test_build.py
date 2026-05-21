@@ -1,4 +1,3 @@
-import json
 import nibabel as nib
 import numpy as np
 from pathlib import Path
