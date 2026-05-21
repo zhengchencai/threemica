@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from threemica import _wizard
 
@@ -187,6 +188,7 @@ def build(
     resolution: str = "fsLR-32k",
     surface_type: str = "individual",
     out_dir: Optional[Path] = None,
+    smooth_mm: Optional[int] = None,
 ) -> Path:
     """Write one HTML report for one subject/session. Returns the output path."""
     if not maps:
@@ -231,17 +233,45 @@ def build(
     out_dir = Path(out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    map_slug = "-".join(dict.fromkeys(_slug(m.label) for m in maps))
     base = sub_label + (f"_{session}" if session else "")
-    fname = f"{base}_space-{resolution}_desc-{surface_type}_report-{map_slug}.html"
+
+    # Optional smoothing — wb_command -metric-smoothing into <out_dir>/_tmp/
+    map_lhs = [m.lh_path for m in maps]
+    map_rhs = [m.rh_path for m in maps]
+    tmp_dir: Optional[Path] = None
+    if smooth_mm:
+        import nibabel as nib
+        from threemica._smoothing import smooth_map, write_cortex_mask_gii
+        tmp_dir = out_dir / "_tmp"
+        tmp_dir.mkdir(exist_ok=True)
+        n_lh = len(nib.load(str(surf_lh)).agg_data("pointset"))
+        n_rh = len(nib.load(str(surf_rh)).agg_data("pointset"))
+        mask_lh = write_cortex_mask_gii(resolution, "lh", n_lh, tmp_dir / f"cortex_mask_{resolution}_lh.shape.gii")
+        mask_rh = write_cortex_mask_gii(resolution, "rh", n_rh, tmp_dir / f"cortex_mask_{resolution}_rh.shape.gii")
+        smoothed_lhs, smoothed_rhs = [], []
+        for m in maps:
+            out_lh = tmp_dir / f"{m.lh_path.stem}_smooth-{smooth_mm}mm.func.gii"
+            out_rh = tmp_dir / f"{m.rh_path.stem}_smooth-{smooth_mm}mm.func.gii"
+            smooth_map(surf_lh, m.lh_path, out_lh, smooth_mm, mask_lh)
+            smooth_map(surf_rh, m.rh_path, out_rh, smooth_mm, mask_rh)
+            smoothed_lhs.append(out_lh)
+            smoothed_rhs.append(out_rh)
+        map_lhs, map_rhs = smoothed_lhs, smoothed_rhs
+
+    map_slug = "-".join(dict.fromkeys(_slug(m.label) for m in maps))
+    smooth_tag = f"_smooth-{smooth_mm}mm" if smooth_mm else ""
+    fname = (
+        f"{base}_space-{resolution}_desc-{surface_type}{smooth_tag}"
+        f"_report-{map_slug}.html"
+    )
     out_html = out_dir / fname
 
     # Build the payload via the ported builder
     payload = build_payload(
         surf_lh=surf_lh,
         surf_rh=surf_rh,
-        map_lhs=[m.lh_path for m in maps],
-        map_rhs=[m.rh_path for m in maps],
+        map_lhs=map_lhs,
+        map_rhs=map_rhs,
         resolution=resolution,
         labels=[m.label for m in maps],
         sub_labels=[base] * len(maps),
@@ -263,6 +293,10 @@ def build(
         .replace("{{VIEWER_JS}}", js_body)
     )
     out_html.write_text(html, encoding="utf-8")
+
+    if tmp_dir is not None:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
     return out_html
 
 
@@ -277,6 +311,15 @@ def _select_maps_for(
     return [m for m in available if m.label in wanted and m.resolution == resolution]
 
 
+def _threemica_out_dir(
+    mp_root: Path, subject: str, session: Optional[str]
+) -> Path:
+    """Default output: <BIDS>/derivatives/threemica/sub-XX/[ses-YY]/."""
+    bids_root = mp_root.parent.parent  # micapipe → derivatives → BIDS
+    base = bids_root / "derivatives" / "threemica" / subject
+    return base / session if session else base
+
+
 def run(
     micapipe_root: "str | Path | None" = None,
     *,
@@ -286,13 +329,14 @@ def run(
     resolution: Optional[str] = None,
     surface_type: str = "individual",
     out_dir: Optional[Path] = None,
+    smooth_mm: Optional[int] = None,
     interactive: bool = True,
 ) -> List[Path]:
     """End-to-end flow: resolve root → scan → (pick) → build.
 
     interactive=False is the scripted entry point; requires `subjects`,
     `maps`, and `resolution`. interactive=True opens questionary pickers
-    for whatever is None (implemented in Task 9).
+    for whatever is None.
     """
     resolved = resolve_micapipe_root(micapipe_root)
     mp_root = resolved.root
@@ -312,6 +356,7 @@ def run(
             resolution=resolution,
             surface_type=surface_type,
             out_dir=out_dir,
+            smooth_mm=smooth_mm,
         )
 
     return _run_interactive(
@@ -322,6 +367,7 @@ def run(
         resolution=resolution,
         surface_type=surface_type,
         out_dir=out_dir,
+        smooth_mm=smooth_mm,
     )
 
 
@@ -334,6 +380,7 @@ def _run_scripted(
     resolution: str,
     surface_type: str,
     out_dir: Optional[Path],
+    smooth_mm: Optional[int] = None,
 ) -> List[Path]:
     outputs: List[Path] = []
     for sub in subjects:
@@ -347,6 +394,7 @@ def _run_scripted(
             picked = _select_maps_for(available, map_labels, resolution)
             if not picked:
                 continue
+            this_out = out_dir if out_dir is not None else _threemica_out_dir(mp_root, sub, ses)
             outputs.append(
                 build(
                     subject_dir=sub_dir,
@@ -354,7 +402,8 @@ def _run_scripted(
                     maps=picked,
                     resolution=resolution,
                     surface_type=surface_type,
-                    out_dir=out_dir,
+                    out_dir=this_out,
+                    smooth_mm=smooth_mm,
                 )
             )
     return outputs
@@ -369,6 +418,7 @@ def _run_interactive(
     resolution: Optional[str],
     surface_type: str,
     out_dir: Optional[Path],
+    smooth_mm: Optional[int] = None,
 ) -> List[Path]:
     mp_root = resolved.root
 
@@ -382,10 +432,20 @@ def _run_interactive(
     if not subjects:
         return []
 
-    # 2. Scan everything for the selected subjects so we can offer labels + resolutions
+    # 2. Scan everything for the selected subjects
     scans: dict[str, dict[Optional[str], List[FeatureMap]]] = {
         sub: scan(mp_root / sub) for sub in subjects
     }
+
+    # 3. Sessions — only prompt if at least one subject actually has named sessions
+    session_candidates = sorted({
+        ses for per in scans.values() for ses in per.keys() if ses is not None
+    })
+    if sessions is None and session_candidates:
+        default = [resolved.session] if resolved.session else None
+        sessions = _wizard.pick_sessions(session_candidates, default=default)
+        if not sessions:
+            return []
 
     # Aggregate available (label, resolution) across selected subjects/sessions
     all_pairs = set()
@@ -399,21 +459,25 @@ def _run_interactive(
     if not all_pairs:
         return []
 
-    # 3. Resolution
+    # 4. Resolution
     if resolution is None:
         res_candidates = sorted({r for _, r in all_pairs})
         resolution = _wizard.pick_resolution(res_candidates)
     if not resolution:
         return []
 
-    # 4. Maps (filtered to the chosen resolution)
+    # 5. Maps (filtered to the chosen resolution)
     label_candidates = sorted({lab for lab, r in all_pairs if r == resolution})
     if map_labels is None:
         map_labels = _wizard.pick_maps(label_candidates)
     if not map_labels:
         return []
 
-    # 5. Build per subject/session
+    # 6. Smoothing FWHM
+    if smooth_mm is None:
+        smooth_mm = _wizard.pick_smooth()
+
+    # 7. Build per subject/session
     return _run_scripted(
         mp_root=mp_root,
         subjects=subjects,
@@ -422,6 +486,7 @@ def _run_interactive(
         resolution=resolution,
         surface_type=surface_type,
         out_dir=out_dir,
+        smooth_mm=smooth_mm,
     )
 
 

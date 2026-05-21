@@ -31,7 +31,8 @@ Each time you want to use `threemica`, activate the env first
 (`conda activate threemica` or `source ~/.venvs/threemica/bin/activate`).
 
 Optional: install [Connectome Workbench](https://www.humanconnectome.org/software/connectome-workbench)
-(`wb_command`) — required only when resampling between fsLR resolutions.
+(`wb_command`) — required for `--smooth` (surface smoothing) and for
+cross-resolution resampling.
 
 ## Use it (CLI)
 
@@ -40,15 +41,21 @@ cd /path/to/derivatives/micapipe_v0.2.0
 threemica
 ```
 
-You'll be asked which subjects, which feature maps, and which resolution
-(fsLR-5k or fsLR-32k). Output is written to
-`<MicaPipe>/sub-XX/[ses-YY]/report/`.
+You'll be asked which subjects, sessions, feature maps, resolution, and
+smoothing FWHM. Output is written to
+`<BIDS>/derivatives/threemica/sub-XX/[ses-YY]/`.
 
-You can also point it at a path:
+You can also point it at a path or skip prompts via flags:
 
 ```bash
 threemica /path/to/derivatives/micapipe_v0.2.0/sub-001/ses-01
+threemica --subjects sub-001 --maps thickness curv \
+          --resolution fsLR-32k --smooth 5 --batch
 ```
+
+`--smooth N` runs `wb_command -metric-smoothing` on the midthickness surface
+with the medial wall masked out. Intermediate smoothed files live in a
+`_tmp/` folder under the output dir and are removed on completion.
 
 ## Use it (Python API)
 

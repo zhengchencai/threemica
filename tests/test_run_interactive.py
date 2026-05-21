@@ -15,6 +15,11 @@ def test_interactive_pipes_through_pickers(fake_micapipe, monkeypatch):
         core._wizard, "pick_resolution",
         lambda candidates, default=None: "fsLR-5k",
     )
+    monkeypatch.setattr(
+        core._wizard, "pick_sessions",
+        lambda candidates, default=None: candidates,
+    )
+    monkeypatch.setattr(core._wizard, "pick_smooth", lambda default=None: None)
 
     out = core.run(
         micapipe_root=fake_micapipe,

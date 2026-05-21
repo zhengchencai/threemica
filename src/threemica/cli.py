@@ -58,6 +58,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Surface to render maps on (default: individual).",
     )
     p.add_argument(
+        "--smooth",
+        type=int,
+        default=None,
+        metavar="FWHM_MM",
+        help="Surface smoothing FWHM in mm (wb_command -metric-smoothing). "
+        "Omit or 0 = no smoothing.",
+    )
+    p.add_argument(
         "--out",
         type=Path,
         default=None,
@@ -87,6 +95,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             resolution=args.resolution,
             surface_type=args.surface,
             out_dir=args.out,
+            smooth_mm=(args.smooth if args.smooth and args.smooth > 0 else None),
             interactive=not args.batch,
         )
     except FileNotFoundError as e:
