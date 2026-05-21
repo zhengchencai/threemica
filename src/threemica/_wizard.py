@@ -10,7 +10,7 @@ _STYLE = questionary.Style([
     ("selected", "noreverse"),
     ("pointer", ""),
     ("highlighted", "noreverse"),
-    ("answer", "fg:green"),
+    ("answer", "fg:cyan"),
 ])
 
 
@@ -30,6 +30,7 @@ def pick_subjects(
             )
             for s in candidates
         ],
+        pointer=">",
         style=_STYLE,
     ).ask()
     return answer or []
@@ -49,6 +50,7 @@ def pick_maps(
             )
             for s in candidates
         ],
+        pointer=">",
         style=_STYLE,
     ).ask()
     return answer or []
