@@ -148,3 +148,120 @@ def scan(subject_dir: str | Path) -> dict[Optional[str], list[FeatureMap]]:
 
 
 __all__ += ["FeatureMap", "scan"]
+
+
+# ---------------------------------------------------------------------------
+# build()
+# ---------------------------------------------------------------------------
+
+import json as _json
+
+from threemica._resources import viewer_template, viewer_js
+from threemica.builder import build_payload
+
+
+_SUB_FROM_DIR_RE = re.compile(r"^sub-[^_/]+$")
+
+
+def _slug(label: str) -> str:
+    """Lowercase, dash-separated, alphanumerics only — for filename map slugs."""
+    s = re.sub(r"[^a-zA-Z0-9]+", "-", label).strip("-").lower()
+    return s or "map"
+
+
+def _subject_label(subject_dir: Path) -> str:
+    """Return 'sub-XXX' regardless of whether the caller passed sub-XXX or a path ending in it."""
+    name = subject_dir.name
+    if not _SUB_FROM_DIR_RE.match(name):
+        raise ValueError(f"subject_dir must end in 'sub-XXX', got: {subject_dir}")
+    return name
+
+
+def build(
+    subject_dir: str | Path,
+    session: Optional[str],
+    maps: list[FeatureMap],
+    *,
+    resolution: str = "fsLR-32k",
+    surface_type: str = "individual",
+    out_dir: Optional[Path] = None,
+) -> Path:
+    """Write one HTML report for one subject/session. Returns the output path."""
+    if not maps:
+        raise ValueError("build() requires at least one FeatureMap")
+    sub_dir = Path(subject_dir).resolve()
+    sub_label = _subject_label(sub_dir)
+
+    # All maps must be at the requested resolution
+    bad = [m for m in maps if m.resolution != resolution]
+    if bad:
+        raise ValueError(
+            f"All maps must be at resolution={resolution}, "
+            f"but got {[(m.label, m.resolution) for m in bad]}"
+        )
+
+    # Choose surface
+    if surface_type == "template":
+        from threemica._resources import bundle_root
+        surf_root = bundle_root() / "surfaces"
+        # Some resolutions ship as `.surf.gii`, others as `.midthickness.surf.gii`
+        midL = surf_root / f"{resolution}.L.midthickness.surf.gii"
+        midR = surf_root / f"{resolution}.R.midthickness.surf.gii"
+        if not midL.exists():
+            midL = surf_root / f"{resolution}.L.surf.gii"
+            midR = surf_root / f"{resolution}.R.surf.gii"
+        surf_lh, surf_rh = midL, midR
+    else:  # individual
+        # Look under <subject>/[<session>/]surf/ for midthickness
+        surf_dir = (sub_dir / session / "surf") if session else (sub_dir / "surf")
+        candidates_L = sorted(surf_dir.glob(f"*hemi-L*{resolution}*midthickness*.surf.gii"))
+        candidates_R = sorted(surf_dir.glob(f"*hemi-R*{resolution}*midthickness*.surf.gii"))
+        if not candidates_L or not candidates_R:
+            raise FileNotFoundError(
+                f"No individual midthickness surface for {resolution} in {surf_dir}"
+            )
+        surf_lh = candidates_L[0]
+        surf_rh = candidates_R[0]
+
+    # Output path
+    if out_dir is None:
+        out_dir = (sub_dir / session / "report") if session else (sub_dir / "report")
+    out_dir = Path(out_dir).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    map_slug = "-".join(dict.fromkeys(_slug(m.label) for m in maps))
+    base = sub_label + (f"_{session}" if session else "")
+    fname = f"{base}_space-{resolution}_desc-{surface_type}_report-{map_slug}.html"
+    out_html = out_dir / fname
+
+    # Build the payload via the ported builder
+    payload = build_payload(
+        surf_lh=surf_lh,
+        surf_rh=surf_rh,
+        map_lhs=[m.lh_path for m in maps],
+        map_rhs=[m.rh_path for m in maps],
+        resolution=resolution,
+        labels=[m.label for m in maps],
+        sub_labels=[base] * len(maps),
+        cb_labels=["Value"] * len(maps),
+        colormaps=["plasma"] * len(maps),
+        clims=[None] * len(maps),
+        surface_type=surface_type,
+    )
+
+    # Assemble HTML from the bundled viewer
+    template = viewer_template().read_text(encoding="utf-8")
+    js_body = viewer_js().read_text(encoding="utf-8")
+    title = f"{maps[0].label} — threemica"
+    html = (
+        template
+        .replace("{{TITLE}}", title)
+        .replace("{{THEME_CLASS}}", "")
+        .replace("{{PAYLOAD_JSON}}", _json.dumps(payload))
+        .replace("{{VIEWER_JS}}", js_body)
+    )
+    out_html.write_text(html, encoding="utf-8")
+    return out_html
+
+
+__all__ += ["build"]

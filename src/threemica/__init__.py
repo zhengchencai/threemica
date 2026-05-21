@@ -11,3 +11,7 @@ __all__ += ["ResolvedRoot", "resolve_micapipe_root"]
 from threemica.core import FeatureMap, scan
 
 __all__ += ["FeatureMap", "scan"]
+
+from threemica.core import build
+
+__all__ += ["build"]
