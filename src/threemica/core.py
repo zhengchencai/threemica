@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from threemica import _wizard
+
 
 @dataclass(frozen=True)
 class ResolvedRoot:
@@ -358,9 +360,69 @@ def _run_scripted(
     return outputs
 
 
-def _run_interactive(**_kwargs) -> List[Path]:
-    """Placeholder — implemented in Task 9."""
-    raise NotImplementedError("interactive=True is implemented in Task 9")
+def _run_interactive(
+    *,
+    resolved: ResolvedRoot,
+    subjects: Optional[List[str]],
+    sessions: Optional[List[str]],
+    map_labels: Optional[List[str]],
+    resolution: Optional[str],
+    surface_type: str,
+    out_dir: Optional[Path],
+) -> List[Path]:
+    mp_root = resolved.root
+
+    # 1. Subjects
+    all_subjects = sorted(
+        d.name for d in mp_root.iterdir() if d.is_dir() and _SUB_RE.match(d.name)
+    )
+    if subjects is None:
+        default = [resolved.subject] if resolved.subject else None
+        subjects = _wizard.pick_subjects(all_subjects, default=default)
+    if not subjects:
+        return []
+
+    # 2. Scan everything for the selected subjects so we can offer labels + resolutions
+    scans: dict[str, dict[Optional[str], List[FeatureMap]]] = {
+        sub: scan(mp_root / sub) for sub in subjects
+    }
+
+    # Aggregate available (label, resolution) across selected subjects/sessions
+    all_pairs = set()
+    for per_ses in scans.values():
+        for ses, fms in per_ses.items():
+            if sessions is not None and ses not in sessions:
+                continue
+            for fm in fms:
+                all_pairs.add((fm.label, fm.resolution))
+
+    if not all_pairs:
+        return []
+
+    # 3. Resolution
+    if resolution is None:
+        res_candidates = sorted({r for _, r in all_pairs})
+        resolution = _wizard.pick_resolution(res_candidates)
+    if not resolution:
+        return []
+
+    # 4. Maps (filtered to the chosen resolution)
+    label_candidates = sorted({lab for lab, r in all_pairs if r == resolution})
+    if map_labels is None:
+        map_labels = _wizard.pick_maps(label_candidates)
+    if not map_labels:
+        return []
+
+    # 5. Build per subject/session
+    return _run_scripted(
+        mp_root=mp_root,
+        subjects=subjects,
+        sessions=sessions,
+        map_labels=map_labels,
+        resolution=resolution,
+        surface_type=surface_type,
+        out_dir=out_dir,
+    )
 
 
 __all__ += ["run"]
