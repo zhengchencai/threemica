@@ -9,9 +9,26 @@ top-term lookups.
 
 ## Install
 
+**Recommended:** create a fresh conda env so threemica's dependencies
+(nibabel, numpy, pandas, questionary, rich) don't touch your existing
+environments.
+
 ```bash
-pip install threemica
+conda create -n threemica python=3.11 -y
+conda activate threemica
+pip install threemica-0.1.0-py3-none-any.whl
 ```
+
+Or with `venv` if you don't have conda:
+
+```bash
+python3.11 -m venv ~/.venvs/threemica
+source ~/.venvs/threemica/bin/activate
+pip install threemica-0.1.0-py3-none-any.whl
+```
+
+Each time you want to use `threemica`, activate the env first
+(`conda activate threemica` or `source ~/.venvs/threemica/bin/activate`).
 
 Optional: install [Connectome Workbench](https://www.humanconnectome.org/software/connectome-workbench)
 (`wb_command`) — required only when resampling between fsLR resolutions.
