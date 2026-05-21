@@ -63,6 +63,22 @@ let hoveredRoi = -1;
 let hoveredVertexIdx = -1;
 let hoverEnabled = false;    // 'Q' toggles the hover/click query system
 
+// Surface shading state: satin keeps a subtle highlight, matte is fully diffuse.
+let shadingMode = 'satin';
+const SHADING_STYLES = {
+  satin: { roughness: 0.65, metalness: 0.0 },
+  matte: { roughness: 0.95, metalness: 0.0 },
+};
+function applyShadingMode() {
+  const style = SHADING_STYLES[shadingMode] || SHADING_STYLES.satin;
+  [meshL, meshR].forEach(mesh => {
+    if (!mesh || !mesh.material) return;
+    mesh.material.roughness = style.roughness;
+    mesh.material.metalness = style.metalness;
+    mesh.material.needsUpdate = true;
+  });
+}
+
 // Leader-line state — tracks the picked vertex while the tooltip is pinned, so
 // the line can be re-projected each frame as the cortex morphs and rotates.
 let pinnedHostMesh = null;
@@ -340,6 +356,10 @@ function onKeyDown(e) {
   if (k === 'q' || k === 'Q') {
     hoverEnabled = !hoverEnabled;
     if (!hoverEnabled) unpinTooltip();
+  }
+  if (k === 's' || k === 'S') {
+    shadingMode = (shadingMode === 'satin') ? 'matte' : 'satin';
+    applyShadingMode();
   }
   if (k === 't' || k === 'T') {
     document.body.classList.toggle('theme-white');
