@@ -47,9 +47,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--resolution",
+        nargs="+",
         choices=["fsLR-5k", "fsLR-32k"],
         default=None,
-        help="Surface resolution. Default: interactive picker.",
+        help="Surface resolution(s); one HTML per resolution. Default: interactive picker.",
     )
     p.add_argument(
         "--surface",

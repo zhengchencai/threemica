@@ -320,13 +320,22 @@ def _threemica_out_dir(
     return base / session if session else base
 
 
+def _as_resolutions(value) -> Optional[List[str]]:
+    """Normalize resolution arg: None | str | list[str] → list[str] | None."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return [value]
+    return list(value)
+
+
 def run(
     micapipe_root: "str | Path | None" = None,
     *,
     subjects: Optional[List[str]] = None,
     sessions: Optional[List[str]] = None,
     maps: Optional[List[str]] = None,
-    resolution: Optional[str] = None,
+    resolution: "Optional[str | List[str]]" = None,
     surface_type: str = "individual",
     out_dir: Optional[Path] = None,
     smooth_mm: Optional[int] = None,
@@ -334,26 +343,26 @@ def run(
 ) -> List[Path]:
     """End-to-end flow: resolve root → scan → (pick) → build.
 
-    interactive=False is the scripted entry point; requires `subjects`,
-    `maps`, and `resolution`. interactive=True opens questionary pickers
-    for whatever is None.
+    `resolution` accepts a single string or a list of strings; one HTML is
+    produced per (subject, session, resolution) with matching maps.
     """
     resolved = resolve_micapipe_root(micapipe_root)
     mp_root = resolved.root
+    resolutions = _as_resolutions(resolution)
 
     if not interactive:
         if not subjects:
             raise ValueError("subjects is required when interactive=False")
         if not maps:
             raise ValueError("maps is required when interactive=False")
-        if not resolution:
+        if not resolutions:
             raise ValueError("resolution is required when interactive=False")
         return _run_scripted(
             mp_root=mp_root,
             subjects=subjects,
             sessions=sessions,
             map_labels=maps,
-            resolution=resolution,
+            resolutions=resolutions,
             surface_type=surface_type,
             out_dir=out_dir,
             smooth_mm=smooth_mm,
@@ -364,7 +373,7 @@ def run(
         subjects=subjects,
         sessions=sessions,
         map_labels=maps,
-        resolution=resolution,
+        resolutions=resolutions,
         surface_type=surface_type,
         out_dir=out_dir,
         smooth_mm=smooth_mm,
@@ -377,7 +386,7 @@ def _run_scripted(
     subjects: List[str],
     sessions: Optional[List[str]],
     map_labels: List[str],
-    resolution: str,
+    resolutions: List[str],
     surface_type: str,
     out_dir: Optional[Path],
     smooth_mm: Optional[int] = None,
@@ -391,21 +400,22 @@ def _run_scripted(
         for ses, available in per_session.items():
             if sessions is not None and ses not in sessions:
                 continue
-            picked = _select_maps_for(available, map_labels, resolution)
-            if not picked:
-                continue
-            this_out = out_dir if out_dir is not None else _threemica_out_dir(mp_root, sub, ses)
-            outputs.append(
-                build(
-                    subject_dir=sub_dir,
-                    session=ses,
-                    maps=picked,
-                    resolution=resolution,
-                    surface_type=surface_type,
-                    out_dir=this_out,
-                    smooth_mm=smooth_mm,
+            for res in resolutions:
+                picked = _select_maps_for(available, map_labels, res)
+                if not picked:
+                    continue
+                this_out = out_dir if out_dir is not None else _threemica_out_dir(mp_root, sub, ses)
+                outputs.append(
+                    build(
+                        subject_dir=sub_dir,
+                        session=ses,
+                        maps=picked,
+                        resolution=res,
+                        surface_type=surface_type,
+                        out_dir=this_out,
+                        smooth_mm=smooth_mm,
+                    )
                 )
-            )
     return outputs
 
 
@@ -415,7 +425,7 @@ def _run_interactive(
     subjects: Optional[List[str]],
     sessions: Optional[List[str]],
     map_labels: Optional[List[str]],
-    resolution: Optional[str],
+    resolutions: Optional[List[str]],
     surface_type: str,
     out_dir: Optional[Path],
     smooth_mm: Optional[int] = None,
@@ -459,15 +469,15 @@ def _run_interactive(
     if not all_pairs:
         return []
 
-    # 4. Resolution
-    if resolution is None:
+    # 4. Resolution (multi-select)
+    if resolutions is None:
         res_candidates = sorted({r for _, r in all_pairs})
-        resolution = _wizard.pick_resolution(res_candidates)
-    if not resolution:
+        resolutions = _wizard.pick_resolution(res_candidates)
+    if not resolutions:
         return []
 
-    # 5. Maps (filtered to the chosen resolution)
-    label_candidates = sorted({lab for lab, r in all_pairs if r == resolution})
+    # 5. Maps (filtered to the chosen resolutions)
+    label_candidates = sorted({lab for lab, r in all_pairs if r in resolutions})
     if map_labels is None:
         map_labels = _wizard.pick_maps(label_candidates)
     if not map_labels:
@@ -477,13 +487,13 @@ def _run_interactive(
     if smooth_mm is None:
         smooth_mm = _wizard.pick_smooth()
 
-    # 7. Build per subject/session
+    # 7. Build per subject/session/resolution
     return _run_scripted(
         mp_root=mp_root,
         subjects=subjects,
         sessions=sessions,
         map_labels=map_labels,
-        resolution=resolution,
+        resolutions=resolutions,
         surface_type=surface_type,
         out_dir=out_dir,
         smooth_mm=smooth_mm,

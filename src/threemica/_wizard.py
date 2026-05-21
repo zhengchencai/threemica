@@ -97,17 +97,20 @@ def pick_smooth(default: Optional[int] = None) -> Optional[int]:
 
 
 def pick_resolution(
-    candidates: List[str], default: Optional[str] = None
-) -> Optional[str]:
-    """Single-select resolution. Auto-picks when only one is offered."""
+    candidates: List[str], default: Optional[List[str]] = None
+) -> List[str]:
+    """Multi-select resolution. Default-check-all; auto-picks when only one offered."""
     if not candidates:
-        return None
+        return []
     if len(candidates) == 1:
-        return candidates[0]
-    return questionary.select(
+        return candidates
+    answer = questionary.checkbox(
         "Resolution:",
-        choices=candidates,
-        default=default,
+        choices=[
+            questionary.Choice(s, value=s, checked=_checked(s, default))
+            for s in candidates
+        ],
         pointer=">",
         style=_STYLE,
     ).ask()
+    return answer or []
