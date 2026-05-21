@@ -63,23 +63,6 @@ let hoveredRoi = -1;
 let hoveredVertexIdx = -1;
 let hoverEnabled = false;    // 'Q' toggles the hover/click query system
 
-// Surface shading state: Phong keeps the current satin highlight, Matte
-// reduces specular reflection for more color-faithful map reading.
-let shadingMode = 'phong';
-const SHADING_STYLES = {
-  phong: { specular: 0x222222, shininess: 30 },
-  matte: { specular: 0x080808, shininess: 8 },
-};
-function applyShadingMode() {
-  const style = SHADING_STYLES[shadingMode] || SHADING_STYLES.phong;
-  [meshL, meshR].forEach(mesh => {
-    if (!mesh || !mesh.material || !mesh.material.isMeshPhongMaterial) return;
-    mesh.material.specular.setHex(style.specular);
-    mesh.material.shininess = style.shininess;
-    mesh.material.needsUpdate = true;
-  });
-}
-
 // Leader-line state — tracks the picked vertex while the tooltip is pinned, so
 // the line can be re-projected each frame as the cortex morphs and rotates.
 let pinnedHostMesh = null;
@@ -249,8 +232,7 @@ function buildMesh(hemiKey) {
 
   const mat = new THREE.MeshPhongMaterial({
     vertexColors: true,
-    specular: SHADING_STYLES.phong.specular,
-    shininess: SHADING_STYLES.phong.shininess,
+    specular: 0x080808, shininess: 8,
     flatShading: false, side: THREE.DoubleSide,
     transparent: true, opacity: 1.0,
   });
@@ -359,10 +341,6 @@ function onKeyDown(e) {
   if (k === 'q' || k === 'Q') {
     hoverEnabled = !hoverEnabled;
     if (!hoverEnabled) unpinTooltip();
-  }
-  if (k === 's' || k === 'S') {
-    shadingMode = (shadingMode === 'satin') ? 'matte' : 'satin';
-    applyShadingMode();
   }
   if (k === 't' || k === 'T') {
     document.body.classList.toggle('theme-white');
