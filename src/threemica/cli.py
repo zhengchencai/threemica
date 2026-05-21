@@ -28,6 +28,30 @@ def _build_parser() -> argparse.ArgumentParser:
         "(default: current working directory).",
     )
     p.add_argument(
+        "--subjects",
+        nargs="+",
+        default=None,
+        help="Subjects to process (e.g. sub-001 sub-002). Default: interactive picker.",
+    )
+    p.add_argument(
+        "--sessions",
+        nargs="+",
+        default=None,
+        help="Sessions to include (e.g. ses-01). Default: all sessions found.",
+    )
+    p.add_argument(
+        "--maps",
+        nargs="+",
+        default=None,
+        help="Feature-map labels (e.g. thickness curv). Default: interactive picker.",
+    )
+    p.add_argument(
+        "--resolution",
+        choices=["fsLR-5k", "fsLR-32k"],
+        default=None,
+        help="Surface resolution. Default: interactive picker.",
+    )
+    p.add_argument(
         "--surface",
         choices=["individual", "template"],
         default="individual",
@@ -38,6 +62,11 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Override the output directory.",
+    )
+    p.add_argument(
+        "--batch",
+        action="store_true",
+        help="Non-interactive mode. Requires --subjects, --maps, --resolution.",
     )
     return p
 
@@ -52,9 +81,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         outputs = _run_via_core(
             micapipe_root=args.path,
+            subjects=args.subjects,
+            sessions=args.sessions,
+            maps=args.maps,
+            resolution=args.resolution,
             surface_type=args.surface,
             out_dir=args.out,
-            interactive=True,
+            interactive=not args.batch,
         )
     except FileNotFoundError as e:
         _console.print(f"[red]✗[/] {e}")

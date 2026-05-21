@@ -26,7 +26,7 @@ def pick_subjects(
         "Subjects:",
         choices=[
             questionary.Choice(
-                s, value=s, checked=(default is None or s in default)
+                s, value=s, checked=(default is not None and s in default)
             )
             for s in candidates
         ],
