@@ -63,18 +63,19 @@ let hoveredRoi = -1;
 let hoveredVertexIdx = -1;
 let hoverEnabled = false;    // 'Q' toggles the hover/click query system
 
-// Surface shading state: satin keeps a subtle highlight, matte is fully diffuse.
-let shadingMode = 'satin';
+// Surface shading state: Phong keeps the current satin highlight, Matte
+// reduces specular reflection for more color-faithful map reading.
+let shadingMode = 'phong';
 const SHADING_STYLES = {
-  satin: { roughness: 0.65, metalness: 0.0 },
-  matte: { roughness: 0.95, metalness: 0.0 },
+  phong: { specular: 0x222222, shininess: 30 },
+  matte: { specular: 0x080808, shininess: 8 },
 };
 function applyShadingMode() {
-  const style = SHADING_STYLES[shadingMode] || SHADING_STYLES.satin;
+  const style = SHADING_STYLES[shadingMode] || SHADING_STYLES.phong;
   [meshL, meshR].forEach(mesh => {
-    if (!mesh || !mesh.material) return;
-    mesh.material.roughness = style.roughness;
-    mesh.material.metalness = style.metalness;
+    if (!mesh || !mesh.material || !mesh.material.isMeshPhongMaterial) return;
+    mesh.material.specular.setHex(style.specular);
+    mesh.material.shininess = style.shininess;
     mesh.material.needsUpdate = true;
   });
 }
@@ -246,8 +247,10 @@ function buildMesh(hemiKey) {
   geo.setAttribute('color',    new THREE.BufferAttribute(colors, 4));
   geo.setIndex(new THREE.BufferAttribute(md.faces, 1));
 
-  const mat = new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: 0.65, metalness: 0.0,
+  const mat = new THREE.MeshPhongMaterial({
+    vertexColors: true,
+    specular: SHADING_STYLES.phong.specular,
+    shininess: SHADING_STYLES.phong.shininess,
     flatShading: false, side: THREE.DoubleSide,
     transparent: true, opacity: 1.0,
   });
