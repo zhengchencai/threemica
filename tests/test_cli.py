@@ -1,5 +1,4 @@
 import subprocess
-import sys
 from pathlib import Path
 
 PKG = Path(__file__).resolve().parents[1] / "src" / "threemica"
