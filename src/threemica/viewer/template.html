@@ -90,10 +90,13 @@
 
   /* ── Tooltip ── */
   #tooltip {
+    --tooltip-scale: 1.2;
     position: fixed; display: none; background: rgba(15,16,21,0.9);
-    color: var(--text-main); padding: 12px 16px; border-radius: 6px; border: none;
+    color: var(--text-main);
+    padding: calc(12px * var(--tooltip-scale)) calc(16px * var(--tooltip-scale));
+    border-radius: calc(6px * var(--tooltip-scale)); border: none;
     z-index: 20; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    width: fit-content; font-size: 0.81em; line-height: 1.5;
+    width: fit-content; font-size: calc(0.81em * var(--tooltip-scale)); line-height: 1.5;
     pointer-events: none; user-select: text; -webkit-user-select: text;
   }
   #tooltip.pinned { pointer-events: auto; }
@@ -114,16 +117,17 @@
   body.theme-white #tooltip.pinned[data-arrow="top"]::before    { border-bottom-color:rgba(255,255,255,0.9); }
   body.theme-white #tooltip.pinned[data-arrow="bottom"]::before { border-top-color:rgba(255,255,255,0.9); }
 
-  .tooltip-header { margin-bottom: 4px; }
+  .tooltip-header { margin-bottom: calc(4px * var(--tooltip-scale)); }
   .tooltip-header .roi-short { color: var(--text-muted); font-weight: normal; margin-left: 6px; }
   .tooltip-map-val { color: var(--tooltip-val); font-size: 0.85em; margin-top: 3px; margin-bottom: 1px; }
-  .tooltip-click-hint { color: var(--text-dim); font-size: 0.69em; margin-top: 4px; font-style: italic; }
+  .tooltip-click-hint { color: var(--text-dim); font-size: 0.69em; margin-top: calc(4px * var(--tooltip-scale)); font-style: italic; }
 
-  .tooltip-body { display: flex; gap: 14px; margin-top: 6px; }
+  .tooltip-body { display: flex; gap: 14px; margin-top: calc(6px * var(--tooltip-scale)); }
   .tooltip-db { flex: none; }
   .tooltip-db-label { color: var(--text-muted); font-size: 0.85em; font-weight: 600;
                        text-transform: uppercase; letter-spacing: 0.6px;
-                       padding-bottom: 4px; margin-bottom: 4px;
+                       padding-bottom: calc(4px * var(--tooltip-scale));
+                       margin-bottom: calc(4px * var(--tooltip-scale));
                        border-bottom: 1px solid var(--tooltip-border); }
   .tooltip-db-grid { display: grid; grid-template-columns: max-content max-content;
                       column-gap: 10px; row-gap: 2px; }
