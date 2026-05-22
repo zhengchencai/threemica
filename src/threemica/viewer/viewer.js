@@ -303,6 +303,8 @@ function init() {
       btn.onclick = () => switchMap(i);
       navMenu.appendChild(btn);
     });
+    fitNavToViewport();
+    window.addEventListener('resize', fitNavToViewport);
   } else if (navMenu) {
     navMenu.style.display = 'none';
   }
@@ -311,6 +313,25 @@ function init() {
   switchMap(0);
 
   animate();
+}
+
+// Shrink the nav-menu font (via --nav-scale) until all buttons fit on one line.
+// Reads scrollWidth vs clientWidth — keeps the gap/padding consistent because
+// every nav-btn dimension is em-based.
+function fitNavToViewport() {
+  const nav = document.getElementById('nav-menu');
+  if (!nav) return;
+  nav.style.setProperty('--nav-scale', '1');
+  // measure after a frame so layout settles
+  requestAnimationFrame(() => {
+    const max = nav.clientWidth || (window.innerWidth * 0.96);
+    let scale = 1;
+    // Keep halving the font until the strip fits (or scale gets very small)
+    while (nav.scrollWidth > max + 1 && scale > 0.5) {
+      scale -= 0.05;
+      nav.style.setProperty('--nav-scale', scale.toFixed(2));
+    }
+  });
 }
 
 function onResize() {
@@ -462,7 +483,9 @@ function buildHoverHtml(roiIdx, vertexIdx) {
   const mv   = mapData[hKey];
   let valStr = '';
   if (vertexIdx >= 0 && vertexIdx < mv.length) {
-    valStr = `<div class="tooltip-map-val">${escapeHtml(mapData.label)}: ${mv[vertexIdx].toFixed(3)}</div>`;
+    const v = mv[vertexIdx];
+    const txt = Number.isFinite(v) ? v.toFixed(3) : 'n/a';
+    valStr = `<div class="tooltip-map-val">${escapeHtml(mapData.label)}: ${txt}</div>`;
   }
   return `<div class="tooltip-header">
     <strong>${escapeHtml(longName)}</strong>
@@ -480,7 +503,9 @@ function buildPinnedHtml(roiIdx, vertexIdx) {
   const mv   = mapData[hKey];
   let valStr = '';
   if (vertexIdx >= 0 && vertexIdx < mv.length) {
-    valStr = `<div class="tooltip-map-val">${escapeHtml(mapData.label)}: ${mv[vertexIdx].toFixed(3)}</div>`;
+    const v = mv[vertexIdx];
+    const txt = Number.isFinite(v) ? v.toFixed(3) : 'n/a';
+    valStr = `<div class="tooltip-map-val">${escapeHtml(mapData.label)}: ${txt}</div>`;
   }
   const q = topQuery[roiIdx] || [];
   const s = topSynth[roiIdx] || [];
