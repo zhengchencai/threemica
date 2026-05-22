@@ -29,10 +29,24 @@ def _wb_command() -> str:
 def smooth_map(
     surf_path: Path, metric_path: Path, out_path: Path, fwhm: int, mask_path: Path
 ) -> Path:
-    """Gaussian smooth a continuous surface metric via wb_command, restricted
-    to a cortex ROI. Not suitable for sparse / categorical data (NaN propagates,
-    and averaging IDs is meaningless). For those use ``dilate_map`` instead.
+    """Gaussian smooth a continuous surface metric via wb_command (cortex ROI).
+
+    Treats NaN as 0 before smoothing: for dense maps (thickness etc.) this is
+    a no-op because cortex vertices already have finite values; for sparse
+    continuous maps (e.g. IED rates measured only at electrode vertices) it
+    means "no recording = 0 events", which yields a meaningful smoothed field
+    instead of NaN-propagation collapsing the output.
     """
+    arr = nib.load(str(metric_path)).darrays[0].data.astype(np.float32)
+    if np.isnan(arr).any():
+        arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
+        tmp = out_path.parent / (out_path.stem + "_pre.func.gii")
+        gii = nib.GiftiImage(darrays=[nib.gifti.GiftiDataArray(
+            arr, intent="NIFTI_INTENT_NONE", datatype="NIFTI_TYPE_FLOAT32",
+        )])
+        nib.save(gii, str(tmp))
+        metric_path = tmp
+
     cmd = [
         _wb_command(), "-metric-smoothing",
         str(surf_path), str(metric_path), str(fwhm), str(out_path),

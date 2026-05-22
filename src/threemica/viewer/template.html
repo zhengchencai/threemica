@@ -61,11 +61,11 @@
 
   /* ── Map label (top-left) ── */
   #map-label {
-    position: absolute; top: 56px; left: 18px; z-index: 20;
-    pointer-events: none;
+    position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+    z-index: 20; pointer-events: none; text-align: center;
   }
   #map-label-main  { display: none; }
-  #map-label-sub   { display: block; color: var(--text-muted); font-size: 0.72em; }
+  #map-label-sub   { display: block; color: #444; font-size: 0.88em; }
 
   /* ── Colorbar (vertical midline) ── */
   #colorbar-wrap {
