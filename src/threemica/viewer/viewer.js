@@ -825,7 +825,8 @@ init();
   }
 
   // Dispatch a synthetic right-click on the centre of the left container.
-  // The existing onContextMenu handler does the raycast + pin.
+  // Must dispatch on the element (not window) so the existing onContextMenu
+  // handler — which calls e.target.closest('#tooltip') — gets an Element.
   function pinSamplePoint() {
     const c = document.getElementById('container-left');
     if (!c) return;
@@ -835,7 +836,7 @@ init();
       clientY: r.top  + r.height * 0.5,
       button:  2, buttons: 2, bubbles: true, cancelable: true,
     });
-    window.dispatchEvent(evt);
+    c.dispatchEvent(evt);
   }
 
   async function runDemo() {
