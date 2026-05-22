@@ -29,7 +29,25 @@ def _wb_command() -> str:
 def smooth_map(
     surf_path: Path, metric_path: Path, out_path: Path, fwhm: int, mask_path: Path
 ) -> Path:
-    """Smooth a surface metric with wb_command, restricted to a cortex ROI."""
+    """Smooth a surface metric with wb_command, restricted to a cortex ROI.
+
+    Sparse maps (e.g. electrode channels) contain NaN at most vertices and
+    real values only at a handful. wb_command propagates NaN through its
+    kernel, so smoothing such input produces the same NaN-dominated output.
+    We therefore replace NaN with 0 before smoothing so the finite values can
+    diffuse into nearby cortex; dense maps (thickness etc.) have no NaN inside
+    the cortex ROI so this is a no-op for them.
+    """
+    arr = nib.load(str(metric_path)).darrays[0].data.astype(np.float32)
+    if np.isnan(arr).any():
+        arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
+        tmp = out_path.parent / (out_path.stem + "_pre.func.gii")
+        gii = nib.GiftiImage(darrays=[nib.gifti.GiftiDataArray(
+            arr, intent="NIFTI_INTENT_NONE", datatype="NIFTI_TYPE_FLOAT32",
+        )])
+        nib.save(gii, str(tmp))
+        metric_path = tmp
+
     cmd = [
         _wb_command(), "-metric-smoothing",
         str(surf_path), str(metric_path), str(fwhm), str(out_path),
