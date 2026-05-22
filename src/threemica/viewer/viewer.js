@@ -187,10 +187,12 @@ function buildVertexColors(hemiKey) {
   const colors = new Float32Array(nv * 4);
   for (let i = 0; i < nv; i++) {
     let r, g, b;
-    if (md.vertex_to_roi[i] < 0) {
+    const v = vals[i];
+    if (md.vertex_to_roi[i] < 0 || !Number.isFinite(v)) {
+      // medial wall OR NaN/no-data → neutral cortex grey
       r = NO_PARCEL_RGB[0]/255; g = NO_PARCEL_RGB[1]/255; b = NO_PARCEL_RGB[2]/255;
     } else {
-      const t = vmax > vmin ? (vals[i] - vmin) / (vmax - vmin) : 0;
+      const t = vmax > vmin ? (v - vmin) / (vmax - vmin) : 0;
       const [R,G,B] = cmapRGB(t, currentCmap);
       r = R/255; g = G/255; b = B/255;
     }
