@@ -262,12 +262,11 @@ def build(
         map_lhs, map_rhs = smoothed_lhs, smoothed_rhs
 
     # Sub-label shown under the top-left map title:
-    #   "sub-XXX · ses-YY · smooth Nmm"
+    #   "sub-XXX · ses-YY · smooth Nmm" (or "smooth NA" when not smoothed)
     sub_parts = [sub_label]
     if session:
         sub_parts.append(session)
-    if smooth_mm:
-        sub_parts.append(f"smooth {smooth_mm}mm")
+    sub_parts.append(f"smooth {smooth_mm}mm" if smooth_mm else "smooth NA")
     sub_label_str = " · ".join(sub_parts)
 
     # Friendly label per map via MAP_SETTINGS (e.g. thickness → Cortical Thickness)

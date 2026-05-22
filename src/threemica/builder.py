@@ -47,8 +47,8 @@ _SPHERE_STEM = {
 MAP_SETTINGS = {
     # Structural
     "thickness": {"label": "Cortical Thickness", "cmap_type": "pos-only", "cb_label": "mm"},
-    "curvature": {"label": "Curvature", "cmap_type": "diverging", "cb_label": "1/mm"},
-    "curv":      {"label": "Curvature", "cmap_type": "diverging", "cb_label": "1/mm"},
+    "curvature": {"label": "Curvature", "cmap_type": "pos-only", "cb_label": "1/mm"},
+    "curv":      {"label": "Curvature", "cmap_type": "pos-only", "cb_label": "1/mm"},
     "myelin":    {"label": "Myelin Mapping", "cmap_type": "pos-only", "cb_label": "T1w/T2w"},
     "sulc":      {"label": "Sulcal Depth", "cmap_type": "diverging", "cb_label": "mm"},
     "flair":     {"label": "FLAIR", "cmap_type": "pos-only", "cb_label": "AU"},
