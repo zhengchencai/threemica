@@ -13,9 +13,6 @@ Parcelsynth top-term lookups, optional smoothing, and a hidden demo.
   </video>
 </p>
 
-> If the video above doesn't render in your viewer, watch it directly:
-> [docs/demo.mp4](https://github.com/zhengchencai/threemica/raw/master/docs/demo.mp4)
-
 ## Install
 
 Always in a fresh env so threemica's deps don't touch existing ones:
@@ -89,26 +86,10 @@ smoothing FWHM. Outputs land in
 ```
 threemica [PATH] [--subjects sub-001 …] [--sessions ses-01 …]
                  [--maps thickness …] [--resolution fsLR-32k [fsLR-5k]]
-                 [--smooth FWHM_MM] [--out OUT_DIR] [--batch]
+                 [--smooth FWHM_MM] [--output PARENT_DIR]
 ```
 
-## Python API
-
-```python
-import threemica
-
-threemica.run(
-    bids_root="/path/to/BIDS",
-    subjects=["sub-001"],
-    maps=["thickness", "midthickness_FA"],
-    resolution="fsLR-32k",
-    smooth_mm=5,
-    interactive=False,
-)
-```
-
-Public surface: `threemica.run`, `scan_subject`, `build`, `list_subjects`,
-`list_sessions`, `resolve_bids_root`, `find_surface`, `FeatureMap`.
+`threemica --help` for the full list.
 
 ## Viewer controls
 
@@ -126,4 +107,4 @@ There's also a hidden demo: `Enter`, type `poweroverwhelming`, `Enter`.
 
 ## License
 
-GPL-3.0-or-later (matches micapipe). See [LICENSE](LICENSE).
+GPL-3.0-or-later.
