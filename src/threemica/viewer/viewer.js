@@ -871,23 +871,27 @@ init();
     //   even i → horizontal spin (around z-up), odd i → vertical spin
     //   (around y-axis) by reseating each camera's `up` vector before
     //   OrbitControls' autoRotate kicks in.
+    // Map 0 starts from a clean lateral view; subsequent maps continue from
+    // wherever the camera currently is — only the rotation axis (camera `up`)
+    // changes, so the spin looks continuous across the map switch.
+    cameraL.position.set(-CAM_DIST, 0, 0); cameraL.up.set(0, 0, 1);
+    cameraR.position.set( CAM_DIST, 0, 0); cameraR.up.set(0, 0, 1);
+    controlsL.target.set(0, 0, 0); controlsR.target.set(0, 0, 0);
+    controlsL.update(); controlsR.update();
+    controlsL.autoRotate = controlsR.autoRotate = true;
+
     for (let i = 0; i < n && alive(); i++) {
       if (i > 0) document.body.classList.toggle('theme-white');
       switchMap(i);
       morphT = 0; applyMorph();
 
-      // Re-orient cameras for this map's rotation axis
-      controlsL.autoRotate = controlsR.autoRotate = false;
-      cameraL.position.set(-CAM_DIST, 0, 0);
-      cameraR.position.set( CAM_DIST, 0, 0);
+      // Change rotation axis (don't reset position) so the spin stays continuous
       if (i % 2 === 0) {
         cameraL.up.set(0, 0, 1); cameraR.up.set(0, 0, 1);    // horizontal
       } else {
         cameraL.up.set(0, 1, 0); cameraR.up.set(0, 1, 0);    // vertical
       }
-      controlsL.target.set(0, 0, 0); controlsL.update();
-      controlsR.target.set(0, 0, 0); controlsR.update();
-      controlsL.autoRotate = controlsR.autoRotate = true;
+      controlsL.update(); controlsR.update();
 
       await animateMorph(0, 2, HALF);  if (!alive()) break;
       await animateMorph(2, 0, HALF);  if (!alive()) break;
