@@ -1,87 +1,164 @@
 # threemica
 
-Three.js HTML reports for MicaPipe surface maps.
+Three.js HTML reports for MICA-pipeline–style surface maps.
 
-`threemica` scans a MicaPipe derivatives folder, lets you pick which feature
-maps to include, and writes one self-contained HTML report per subject (or
-subject/session) with the YBA-696 atlas overlay and Parcelquery / Parcelsynth
-top-term lookups.
+`threemica` scans a BIDS `derivatives/` folder, finds the files you list in
+`threemica_scope.json`, and writes one self-contained HTML report per
+subject (and session, and resolution) with the YBA-696 atlas hover overlay
+(Parcelquery / Parcelsynth top-term lookups).
 
 ## Install
 
-**Recommended:** create a fresh conda env so threemica's dependencies
-(nibabel, numpy, pandas, questionary, rich) don't touch your existing
-environments.
+**Recommended — fresh conda env**, so threemica's dependencies (nibabel,
+numpy, pandas, questionary, rich) don't touch your existing environments:
 
 ```bash
 conda create -n threemica python=3.11 -y
 conda activate threemica
-pip install threemica-0.1.0-py3-none-any.whl
+pip install threemica-0.2.0-py3-none-any.whl
 ```
 
-Or with `venv` if you don't have conda:
+Or with `venv`:
 
 ```bash
 python3.11 -m venv ~/.venvs/threemica
 source ~/.venvs/threemica/bin/activate
-pip install threemica-0.1.0-py3-none-any.whl
+pip install threemica-0.2.0-py3-none-any.whl
 ```
 
-Each time you want to use `threemica`, activate the env first
-(`conda activate threemica` or `source ~/.venvs/threemica/bin/activate`).
+Each time you want to use `threemica`, activate the env first.
 
-Optional: install [Connectome Workbench](https://www.humanconnectome.org/software/connectome-workbench)
-(`wb_command`) — required for `--smooth` (surface smoothing) and for
-cross-resolution resampling.
+**Optional but recommended:** install
+[Connectome Workbench](https://www.humanconnectome.org/software/connectome-workbench)
+(`wb_command`) — required if you want to smooth maps at runtime.
 
-## Use it (CLI)
+## Quick start
 
 ```bash
-cd /path/to/derivatives/micapipe_v0.2.0
+cd /path/to/BIDS                # any folder that contains derivatives/
 threemica
 ```
 
-You'll be asked which subjects, sessions, feature maps, resolution, and
-smoothing FWHM. Output is written to
-`<BIDS>/derivatives/threemica/sub-XX/[ses-YY]/`.
+On the first run threemica copies `threemica_scope.json` into
+`derivatives/`. **Edit that file** to declare which derivative folders,
+which subdirectories, and which map tags you want plotted. Then re-run.
 
-You can also point it at a path or skip prompts via flags:
+The wizard then asks:
 
-```bash
-threemica /path/to/derivatives/micapipe_v0.2.0/sub-001/ses-01
-threemica --subjects sub-001 --maps thickness curv \
-          --resolution fsLR-32k --smooth 5 --batch
+```
+> ● Subjects               (default: all checked)
+> ● Sessions               (only shown when sessions exist)
+> ● Resolution             (default: fsLR-32k only)
+> ● Maps                   (default: all checked)
+> Smoothing FWHM (mm), NA to skip:
 ```
 
-`--smooth N` runs `wb_command -metric-smoothing` on the midthickness surface
-with the medial wall masked out. Intermediate smoothed files live in a
-`_tmp/` folder under the output dir and are removed on completion.
+Output goes to `<BIDS>/derivatives/threemica/sub-XX/[ses-YY]/`, e.g.:
 
-## Use it (Python API)
+```
+sub-HC010_ses-01_space-fsLR-32k_desc-individual_smooth-5mm_report-thickness-curv-midthickness_FA-midthickness_ADC.html
+```
+
+## The scope file (`threemica_scope.json`)
+
+This is where you declare what threemica should plot. Three-level structure:
+
+```json
+{
+  "surface": {
+    "derivative": "micapipe_v0.2.0",
+    "subdir": "surf",
+    "label": "midthickness"
+  },
+
+  "micapipe_v0.2.0": {
+    "maps": [
+      {"tag": "thickness",          "label": "Cortical Thickness", "unit": "mm",          "cmap": "pos-only"},
+      {"tag": "curv",               "label": "Curvature",          "unit": "1/mm",        "cmap": "diverging"},
+      {"tag": "midthickness_FA",    "label": "FA",                 "unit": "",            "cmap": "pos-only"},
+      {"tag": "midthickness_ADC",   "label": "ADC",                "unit": "mm²/s",       "cmap": "pos-only"},
+      {"tag": "midthickness_T1map", "label": "Quantitative T1",    "unit": "s",           "cmap": "pos-only", "scale": 0.001},
+      {"tag": "midthickness_cbf",   "label": "CBF",                "unit": "mL/100g/min", "cmap": "pos-only"}
+    ]
+  },
+
+  "MICA-PET_v.alpha.0.5": {
+    "surf": [
+      {"tag": "midthickness_pvc-IY_ref-cerebellarGM_smooth-10mm_trc-MK6240_pet",
+       "label": "Tau-PET (MK6240)", "unit": "SUVR", "cmap": "pos-only"}
+    ]
+  }
+}
+```
+
+- **`surface`** — where the midthickness rendering surface lives (one
+  declaration, used for all maps). threemica globs
+  `*hemi-{H}*surf-{res}*label-{label}.surf.gii` under that path.
+- **Top-level keys** other than `surface` are exact derivative folder names
+  inside `derivatives/`. Add as many as you have.
+- **Second-level keys** are subdirs under `sub-XX/[ses-YY]/` to look in
+  (typically `maps` for micapipe, `surf` for micapet).
+- **The tag list** — each tag is the *exact* `_label-X` value in the file
+  name. A tag entry may be a plain string or a dict with these fields:
+  - `tag` (required) — the exact label substring.
+  - `label` — friendly title shown top-left in the HTML.
+  - `unit` — colorbar unit.
+  - `cmap` — `"pos-only"` or `"diverging"`. Pos-only uses min..max of cortex
+    values; diverging uses ±max(|x|) symmetric around 0.
+  - `scale` — multiply data values before display (e.g. `0.001` to render
+    T1map in seconds instead of milliseconds).
+
+Threemica only reads what you put in this file. If you add a new pipeline
+or want a new map, add an entry — no code change.
+
+## CLI flags
+
+```
+threemica [PATH] [--subjects sub-001 sub-002 …]
+                 [--sessions ses-01 …]
+                 [--maps thickness curv …]
+                 [--resolution fsLR-32k [fsLR-5k]]
+                 [--smooth FWHM_MM]
+                 [--out OUT_DIR]
+                 [--batch]
+```
+
+`PATH` defaults to the current working directory; threemica walks up until
+it finds a folder containing `derivatives/`.
+
+Any flag you supply replaces the corresponding wizard prompt. `--batch`
+disables all prompts; you must then provide subjects + maps + resolution
+yourself.
+
+## Python API
 
 ```python
 import threemica
 
 outputs = threemica.run(
-    micapipe_root="/path/to/derivatives/micapipe_v0.2.0",
+    bids_root="/path/to/BIDS",
     subjects=["sub-001"],
     sessions=["ses-01"],
-    maps=["thickness", "curv"],
+    maps=["thickness", "midthickness_FA"],
     resolution="fsLR-32k",
+    smooth_mm=5,
     interactive=False,
 )
 for p in outputs:
     print(p)
 ```
 
-Public API: `threemica.scan`, `threemica.build`, `threemica.run`,
-`threemica.resolve_micapipe_root`, `threemica.FeatureMap`.
+Public API: `threemica.run`, `threemica.scan_subject`, `threemica.build`,
+`threemica.resolve_bids_root`, `threemica.list_subjects`,
+`threemica.list_sessions`, `threemica.find_surface`, `threemica.FeatureMap`.
 
-## Scope (v1)
+## Scope (v0.2)
 
-- Surface feature maps in `maps/` only — no `parc/`, `func/`, `dwi/`.
+- Maps stored per the scope file only — no automatic full-tree scanning.
 - fsLR-5k and fsLR-32k only — no fsnative, no fsaverage5.
-- Three.js viewer copied from the SPACES atlas project, unchanged.
+- Renders only midthickness surfaces; surface comes from one derivative
+  folder declared in `scope.surface`.
+- Three.js viewer derived from the SPACES atlas project.
 
 ## License
 
