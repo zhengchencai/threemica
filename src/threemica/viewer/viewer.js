@@ -855,24 +855,20 @@ init();
     controlsL.autoRotate = controlsR.autoRotate = true;
     controlsL.autoRotateSpeed = controlsR.autoRotateSpeed = 18;  // slower
 
-    // Background loops — colormap cycle, occasional theme flip.
+    // Background loop — colormap cycle.
     const cmapLoop = (async () => {
       while (alive() && demoActive) {
         await sleep(900);  if (!alive() || !demoActive) break;
         cycleColormap();
       }
     })();
-    const themeLoop = (async () => {
-      while (alive() && demoActive) {
-        await sleep(1500);  if (!alive() || !demoActive) break;
-        if (Math.random() < 0.20) document.body.classList.toggle('theme-white');
-      }
-    })();
 
     // Main pass: visit each map exactly once with one inflate↔deflate cycle.
+    // Theme alternates per map (stays constant within a single map).
     // Pin a sample query in the middle of the run (so user sees the popup).
     const pinAtMap = Math.floor(n / 2);
     for (let i = 0; i < n && alive(); i++) {
+      if (i > 0) document.body.classList.toggle('theme-white');
       switchMap(i);
       morphT = 0; applyMorph();
       if (i === pinAtMap) setTimeout(() => { if (alive() && demoActive) pinSamplePoint(); }, HALF / 2);
@@ -882,7 +878,7 @@ init();
     }
 
     demoActive = false;             // stop background loops
-    await Promise.allSettled([cmapLoop, themeLoop]);
+    await Promise.allSettled([cmapLoop]);
 
     // ── Restore to first-open default ────────────────────────────────────
     controlsL.autoRotate = controlsR.autoRotate = false;
@@ -910,7 +906,6 @@ init();
     if (meshR) recolorMesh('rh', meshR);
 
     document.removeEventListener('keydown', onEsc);
-    flashCheat(demoCancelled ? 'Demo cancelled.' : 'Demo complete.', 900);
   }
 })();
 // ═══════════════════════════════════ CHEAT DEMO BLOCK END ═══════════════════
