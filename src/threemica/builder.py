@@ -165,6 +165,7 @@ def build_payload(
     clims: list,
     surface_type: str,
     cmap_types: list | None = None,
+    scales: list | None = None,
 ) -> dict:
     """Assemble the full JSON payload dict for the viewer.
     """
@@ -219,6 +220,11 @@ def build_payload(
 
         if len(map_lh_vals) != n_lh or len(map_rh_vals) != n_rh:
             raise RuntimeError(f"Map vertex count mismatch in map {i}")
+
+        scale = float(scales[i]) if (scales and i < len(scales)) else 1.0
+        if scale != 1.0:
+            map_lh_vals = map_lh_vals * scale
+            map_rh_vals = map_rh_vals * scale
 
         # Cortex-only values for robust range; ignore NaN + medial wall.
         cortex_vals = np.concatenate([map_lh_vals[cortex_lh], map_rh_vals[cortex_rh]])

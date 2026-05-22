@@ -49,6 +49,7 @@ def _normalize_tag(entry) -> Dict[str, Any]:
         "label": explicit.get("label", inferred_label),
         "unit":  explicit.get("unit",  inferred_unit if inferred_unit != "Value" else ""),
         "cmap":  explicit.get("cmap",  inferred_cmap),
+        "scale": float(explicit.get("scale", 1.0)),
     }
 
 

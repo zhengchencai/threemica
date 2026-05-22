@@ -81,6 +81,7 @@ class FeatureMap:
     display_label: str = ""  # what the report shows top-left (e.g. "Cortical Thickness")
     unit: str = ""           # colorbar unit (e.g. "mm")
     cmap: str = "pos-only"   # "pos-only" or "diverging"
+    scale: float = 1.0       # multiply raw data by this before display (e.g. 0.001 for ms→s)
 
 
 def _resolutions_supported() -> tuple:
@@ -172,6 +173,7 @@ def scan_subject(
                         display_label=entry.get("label", tag),
                         unit=entry.get("unit", ""),
                         cmap=entry.get("cmap", "pos-only"),
+                        scale=float(entry.get("scale", 1.0)),
                     ))
     return out
 
@@ -286,6 +288,7 @@ def build(
     nice_labels = [m.display_label or m.label for m in maps]
     cb_labels = [m.unit for m in maps]
     cmap_types = [m.cmap for m in maps]
+    scales = [m.scale for m in maps]
 
     map_slug = "-".join(dict.fromkeys(_slug(m.label) for m in maps))
     smooth_tag = f"_smooth-{smooth_mm}mm" if smooth_mm else ""
@@ -306,6 +309,7 @@ def build(
         clims=[None] * len(maps),
         surface_type="individual",
         cmap_types=cmap_types,
+        scales=scales,
     )
 
     template = viewer_template().read_text(encoding="utf-8")
