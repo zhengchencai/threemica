@@ -379,21 +379,23 @@ function onKeyDown(e) {
   }
   if (k === ']') { switchMap(activeMapIdx + 1); }
   if (k === '[') { switchMap(activeMapIdx - 1); }
-  if (k === 'c' || k === 'C') {
-    const mapData = PAYLOAD.maps[activeMapIdx];
-    if (mapData.cmap_type === 'diverging') {
-      const ci = CMAP_CYCLE_DIV.indexOf(currentCmapDiv);
-      currentCmapDiv = CMAP_CYCLE_DIV[(ci + 1) % CMAP_CYCLE_DIV.length];
-      currentCmap = currentCmapDiv;
-    } else {
-      const ci = CMAP_CYCLE_POS.indexOf(currentCmapPos);
-      currentCmapPos = CMAP_CYCLE_POS[(ci + 1) % CMAP_CYCLE_POS.length];
-      currentCmap = currentCmapPos;
-    }
-    drawColorbar();
-    if (meshL) recolorMesh('lh', meshL);
-    if (meshR) recolorMesh('rh', meshR);
+  if (k === 'c' || k === 'C') cycleColormap();
+}
+
+function cycleColormap() {
+  const mapData = PAYLOAD.maps[activeMapIdx];
+  if (mapData.cmap_type === 'diverging') {
+    const ci = CMAP_CYCLE_DIV.indexOf(currentCmapDiv);
+    currentCmapDiv = CMAP_CYCLE_DIV[(ci + 1) % CMAP_CYCLE_DIV.length];
+    currentCmap = currentCmapDiv;
+  } else {
+    const ci = CMAP_CYCLE_POS.indexOf(currentCmapPos);
+    currentCmapPos = CMAP_CYCLE_POS[(ci + 1) % CMAP_CYCLE_POS.length];
+    currentCmap = currentCmapPos;
   }
+  drawColorbar();
+  if (meshL) recolorMesh('lh', meshL);
+  if (meshR) recolorMesh('rh', meshR);
 }
 
 function applyOpacity() {
@@ -822,75 +824,95 @@ async function runDemo() {
   const onEsc = (e) => { if (e.key === 'Escape') demoCancelled = true; };
   document.addEventListener('keydown', onEsc);
 
-  // Save initial state
   const saved = {
     map: activeMapIdx,
     theme: document.body.classList.contains('theme-white'),
+    cmapPos: currentCmapPos,
+    cmapDiv: currentCmapDiv,
     opacity: cortexOpacity,
     wireframe: wireframeVisible,
     hover: hoverEnabled,
     morphT,
   };
 
-  function setWireframe(v) {
-    wireframeVisible = v;
-    if (wireL) wireL.visible = v;
-    if (wireR) wireR.visible = v;
-  }
-  function setOpacity(v) { cortexOpacity = v; applyOpacity(); }
+  // Demo plays at ~6s total (2x the previous 12s).
+  const TOTAL_MS = 6000;
+  const start = performance.now();
+  const elapsed = () => performance.now() - start;
+  const alive = () => !demoCancelled && elapsed() < TOTAL_MS;
 
-  const step = async (fn, ms) => {
-    if (demoCancelled) return;
-    fn();
-    if (ms) await sleep(ms);
-  };
+  switchMap(0);
+  morphT = 0; applyMorph();
+  hoverEnabled = true;
 
-  // Reset and start on the first map
-  await step(() => {
-    switchMap(0);
-    morphT = 0; applyMorph();
-  }, 200);
-
-  // Rotate 360° (autoRotate is applied every frame via controls.update())
+  // Constant autorotate the whole demo (~2 revolutions, then snaps back at end)
   controlsL.autoRotate = controlsR.autoRotate = true;
-  controlsL.autoRotateSpeed = controlsR.autoRotateSpeed = 14;
-  await sleep(2000);
+  controlsL.autoRotateSpeed = controlsR.autoRotateSpeed = 30;
+
+  // Concurrent timelines:
+  //   - inflate 0→2 and back, looped
+  //   - map switch every ~1.2s
+  //   - colormap cycle every ~0.7s
+  //   - theme flip with ~20% chance per second
+  //   - mid-demo flash hinting at hover/right-click query
+  const inflationLoop = (async () => {
+    while (alive()) {
+      await animateMorph(0, 2, 900);  if (!alive()) break;
+      await animateMorph(2, 0, 900);
+    }
+  })();
+  const mapLoop = (async () => {
+    const n = (PAYLOAD && PAYLOAD.maps) ? PAYLOAD.maps.length : 1;
+    let i = 0;
+    while (alive()) {
+      await sleep(1200);  if (!alive()) break;
+      i = (i + 1) % n; switchMap(i);
+    }
+  })();
+  const cmapLoop = (async () => {
+    while (alive()) {
+      await sleep(700);  if (!alive()) break;
+      cycleColormap();
+    }
+  })();
+  const themeLoop = (async () => {
+    while (alive()) {
+      await sleep(1000);  if (!alive()) break;
+      if (Math.random() < 0.20) document.body.classList.toggle('theme-white');
+    }
+  })();
+  const queryHint = (async () => {
+    await sleep(2200);  if (!alive()) return;
+    flashCheat('Hover: query · Right-click: pin', 1400);
+  })();
+
+  await Promise.all([inflationLoop, mapLoop, cmapLoop, themeLoop, queryHint]);
+
+  // Restore initial state
   controlsL.autoRotate = controlsR.autoRotate = false;
+  cameraL.position.set(-CAM_DIST, 0, 0); cameraL.up.set(0, 0, 1);
+  controlsL.target.set(0, 0, 0); controlsL.update();
+  cameraR.position.set( CAM_DIST, 0, 0); cameraR.up.set(0, 0, 1);
+  controlsR.target.set(0, 0, 0); controlsR.update();
 
-  await animateMorph(0, 1, 800);                 // mid → inflated
-  await animateMorph(1, 2, 800);                 // inflated → sphere
-  await animateMorph(2, 0, 600);                 // sphere → mid
-
-  await step(() => setWireframe(true),  400);
-  await step(() => setWireframe(false), 200);
-
-  await step(() => document.body.classList.toggle('theme-white'), 800);
-  await step(() => document.body.classList.toggle('theme-white'), 200);
-
-  await step(() => setOpacity(REDUCED_OPACITY), 600);
-  await step(() => setOpacity(1.0), 200);
-
-  // Cycle through remaining maps with a quick rotate + morph
-  const n = (PAYLOAD && PAYLOAD.maps) ? PAYLOAD.maps.length : 1;
-  for (let i = 1; i < n && !demoCancelled; i++) {
-    switchMap(i);
-    await animateMorph(0, 0.6, 350);
-    controlsL.autoRotate = controlsR.autoRotate = true;
-    await sleep(900);
-    controlsL.autoRotate = controlsR.autoRotate = false;
-    await animateMorph(0.6, 0, 350);
-  }
-
-  // Restore
   switchMap(saved.map);
   if (document.body.classList.contains('theme-white') !== saved.theme) {
     document.body.classList.toggle('theme-white');
   }
-  setOpacity(saved.opacity);
-  setWireframe(saved.wireframe);
+  currentCmapPos = saved.cmapPos;
+  currentCmapDiv = saved.cmapDiv;
+  currentCmap = (PAYLOAD.maps[activeMapIdx].cmap_type === 'diverging')
+    ? currentCmapDiv : currentCmapPos;
+  drawColorbar();
+  if (meshL) recolorMesh('lh', meshL);
+  if (meshR) recolorMesh('rh', meshR);
+  cortexOpacity = saved.opacity; applyOpacity();
+  wireframeVisible = saved.wireframe;
+  if (wireL) wireL.visible = wireframeVisible;
+  if (wireR) wireR.visible = wireframeVisible;
   hoverEnabled = saved.hover;
+  if (!hoverEnabled) unpinTooltip();
   morphT = saved.morphT; applyMorph();
-  controlsL.autoRotate = controlsR.autoRotate = false;
 
   document.removeEventListener('keydown', onEsc);
   demoActive = false;
