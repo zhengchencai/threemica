@@ -162,6 +162,41 @@
     color: #444; font-size: 0.88em; z-index: 10; text-align: center;
     pointer-events: none; white-space: nowrap;
   }
+
+  /* ── Cheat console ── */
+  #cheat-console {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    z-index: 200; display: none; opacity: 0; transition: opacity 0.15s;
+    background: rgba(15,16,21,0.98); color: var(--text-main);
+    padding: 1.6em 2em; border-radius: 0.75em;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    min-width: 22em;
+  }
+  #cheat-console.visible { display: block; opacity: 1; }
+  body.theme-white #cheat-console { background: rgba(255,255,255,0.98); }
+  #cheat-console .ch-label { color: var(--text-muted); font-size: 0.85em; font-weight: 500;
+                              letter-spacing: 0.6px; text-transform: uppercase;
+                              margin-bottom: 0.8em; }
+  #cheat-console .ch-input-row { display: flex; align-items: baseline; gap: 0.4em;
+                                 font-size: 1.15em; }
+  #cheat-console .ch-prompt { color: var(--text-muted); font-family: monospace; }
+  #cheat-console #cheat-input { background: none; border: none; outline: none;
+                                color: var(--text-main); font: inherit;
+                                font-family: monospace; width: 100%;
+                                caret-color: var(--text-main); }
+  #cheat-console .ch-hint { color: var(--text-dim); font-size: 0.75em; margin-top: 0.9em; }
+
+  /* ── Cheat flash banner ── */
+  #cheat-flash {
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+    z-index: 250; opacity: 0; transition: opacity 0.2s;
+    background: rgba(15,16,21,0.95); color: var(--tooltip-val);
+    padding: 0.4em 1em; border-radius: 0.4em;
+    font-size: 0.95em; font-weight: 500;
+    pointer-events: none; white-space: nowrap;
+  }
+  #cheat-flash.visible { opacity: 1; }
+  body.theme-white #cheat-flash { background: rgba(255,255,255,0.95); }
 </style>
 </head>
 <body class="{{THEME_CLASS}}">
@@ -191,6 +226,13 @@
 <div class="help-bar">
   <span>H help · Scroll or ←→ inflate · ↑↓ zoom · [ ] switch map · C colormap · T theme · Q query · O opacity · M mesh · L lock · R reset</span>
 </div>
+
+<div id="cheat-console">
+  <div class="ch-label">Enter Cheat Code</div>
+  <div class="ch-input-row"><span class="ch-prompt">&gt;</span><input id="cheat-input" autocomplete="off" spellcheck="false" /></div>
+  <div class="ch-hint">↵ submit · esc cancel</div>
+</div>
+<div id="cheat-flash"></div>
 
 <div id="help-modal" onclick="this.classList.remove('visible')">
   <div class="help-content" onclick="event.stopPropagation()">

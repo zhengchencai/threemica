@@ -320,7 +320,19 @@ function onResize() {
   });
 }
 
+// Suspends regular shortcuts while the cheat console is open or a demo is running
+let demoActive = false;
+let cheatOpen = false;
+
 function onKeyDown(e) {
+  // Open cheat console on Enter when nothing else is consuming the key
+  if (!cheatOpen && !demoActive && e.key === 'Enter'
+      && (!document.activeElement || document.activeElement.tagName !== 'INPUT')) {
+    openCheatConsole();
+    e.preventDefault();
+    return;
+  }
+  if (cheatOpen || demoActive) return;
   const k = e.key;
   if (k === 'ArrowUp')   { cameraL.position.multiplyScalar(0.9); cameraR.position.multiplyScalar(0.9); }
   if (k === 'ArrowDown') { cameraL.position.multiplyScalar(1.1); cameraR.position.multiplyScalar(1.1); }
@@ -741,3 +753,146 @@ function animate() {
 }
 
 init();
+
+
+// ─── Cheat console + demo ────────────────────────────────────────────────
+function openCheatConsole() {
+  const box = document.getElementById('cheat-console');
+  const inp = document.getElementById('cheat-input');
+  if (!box || !inp) return;
+  cheatOpen = true;
+  inp.value = '';
+  box.classList.add('visible');
+  setTimeout(() => inp.focus(), 0);
+}
+function closeCheatConsole() {
+  const box = document.getElementById('cheat-console');
+  if (box) box.classList.remove('visible');
+  cheatOpen = false;
+}
+function flashCheat(msg, ms) {
+  const el = document.getElementById('cheat-flash');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), ms || 1500);
+}
+
+const CHEATS = {
+  'whosyourdaddy': runDemo,
+};
+
+document.addEventListener('keydown', (e) => {
+  if (!cheatOpen) return;
+  if (e.key === 'Escape') { closeCheatConsole(); e.preventDefault(); return; }
+  if (e.key === 'Enter') {
+    const inp = document.getElementById('cheat-input');
+    const code = (inp ? inp.value : '').trim().toLowerCase();
+    closeCheatConsole();
+    const fn = CHEATS[code];
+    if (fn) { flashCheat('Cheat enabled.', 1200); setTimeout(fn, 200); }
+    else if (code) { flashCheat('Cheat unrecognized.', 1200); }
+    e.preventDefault();
+  }
+});
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function animateMorph(from, to, ms) {
+  const start = performance.now();
+  return new Promise((resolve) => {
+    function step(now) {
+      const t = Math.min(1, (now - start) / ms);
+      morphT = from + (to - from) * t;
+      applyMorph();
+      if (t < 1 && !demoCancelled) requestAnimationFrame(step);
+      else resolve();
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+let demoCancelled = false;
+
+async function runDemo() {
+  if (demoActive) return;
+  demoActive = true;
+  demoCancelled = false;
+
+  const onEsc = (e) => { if (e.key === 'Escape') demoCancelled = true; };
+  document.addEventListener('keydown', onEsc);
+
+  // Save initial state
+  const saved = {
+    map: activeMapIdx,
+    theme: document.body.classList.contains('theme-white'),
+    opacity: cortexOpacity,
+    wireframe: wireframeVisible,
+    hover: hoverEnabled,
+    morphT,
+  };
+
+  function setWireframe(v) {
+    wireframeVisible = v;
+    if (wireL) wireL.visible = v;
+    if (wireR) wireR.visible = v;
+  }
+  function setOpacity(v) { cortexOpacity = v; applyOpacity(); }
+
+  const step = async (fn, ms) => {
+    if (demoCancelled) return;
+    fn();
+    if (ms) await sleep(ms);
+  };
+
+  // Reset and start on the first map
+  await step(() => {
+    switchMap(0);
+    morphT = 0; applyMorph();
+  }, 200);
+
+  // Rotate 360° (autoRotate is applied every frame via controls.update())
+  controlsL.autoRotate = controlsR.autoRotate = true;
+  controlsL.autoRotateSpeed = controlsR.autoRotateSpeed = 14;
+  await sleep(2000);
+  controlsL.autoRotate = controlsR.autoRotate = false;
+
+  await animateMorph(0, 1, 800);                 // mid → inflated
+  await animateMorph(1, 2, 800);                 // inflated → sphere
+  await animateMorph(2, 0, 600);                 // sphere → mid
+
+  await step(() => setWireframe(true),  400);
+  await step(() => setWireframe(false), 200);
+
+  await step(() => document.body.classList.toggle('theme-white'), 800);
+  await step(() => document.body.classList.toggle('theme-white'), 200);
+
+  await step(() => setOpacity(REDUCED_OPACITY), 600);
+  await step(() => setOpacity(1.0), 200);
+
+  // Cycle through remaining maps with a quick rotate + morph
+  const n = (PAYLOAD && PAYLOAD.maps) ? PAYLOAD.maps.length : 1;
+  for (let i = 1; i < n && !demoCancelled; i++) {
+    switchMap(i);
+    await animateMorph(0, 0.6, 350);
+    controlsL.autoRotate = controlsR.autoRotate = true;
+    await sleep(900);
+    controlsL.autoRotate = controlsR.autoRotate = false;
+    await animateMorph(0.6, 0, 350);
+  }
+
+  // Restore
+  switchMap(saved.map);
+  if (document.body.classList.contains('theme-white') !== saved.theme) {
+    document.body.classList.toggle('theme-white');
+  }
+  setOpacity(saved.opacity);
+  setWireframe(saved.wireframe);
+  hoverEnabled = saved.hover;
+  morphT = saved.morphT; applyMorph();
+  controlsL.autoRotate = controlsR.autoRotate = false;
+
+  document.removeEventListener('keydown', onEsc);
+  demoActive = false;
+  flashCheat(demoCancelled ? 'Demo cancelled.' : 'Demo complete.', 900);
+}
