@@ -30,6 +30,22 @@ function cmapRGB(t, name) {
   const f = s - i;
   return lut[i].map((a, k) => Math.round(a + f * (lut[i+1][k] - a)));
 }
+// Shared value formatter — used by the colorbar ticks AND the hover/pinned
+// tooltip so a single value in the tooltip is shown with the same digits /
+// exponent as the colorbar min/max for the same map.
+const _SUP = ['⁰','¹','²','³','⁴','⁵','⁶','⁷','⁸','⁹'];
+function _supExp(e) {
+  return (e < 0 ? '⁻' : '') + Math.abs(e).toString().split('').map(d => _SUP[+d]).join('');
+}
+function fmtVal(v, vmin, vmax) {
+  const big = Math.max(Math.abs(vmin), Math.abs(vmax));
+  if (big === 0 || !Number.isFinite(big)) return '0';
+  if (big >= 100)  return v.toFixed(0);
+  if (big >= 0.01) return v.toFixed(2);
+  const exp = Math.floor(Math.log10(big));
+  return (v / Math.pow(10, exp)).toFixed(2) + '×10' + _supExp(exp);
+}
+
 function drawColorbar() {
   const mapData = PAYLOAD.maps[activeMapIdx];
   const canvas = document.getElementById('colorbar-canvas');
@@ -41,22 +57,10 @@ function drawColorbar() {
     ctx.fillStyle = `rgb(${r},${g},${b})`;
     ctx.fillRect(0, y, w, 1);
   }
-  // Format vmin/vmax as a pair. Default: 2-decimal fixed point.
-  // If max(|vmin|,|vmax|) < 0.01, use a SHARED exponent (e.g. "5.61×10⁻⁴",
-  // "1.16×10⁻³") so the two ends stay visually comparable.
-  const SUP = ['⁰','¹','²','³','⁴','⁵','⁶','⁷','⁸','⁹'];
-  const supExp = e => (e < 0 ? '⁻' : '') + Math.abs(e).toString().split('').map(d => SUP[+d]).join('');
-  function fmtPair(vmin, vmax) {
-    const big = Math.max(Math.abs(vmin), Math.abs(vmax));
-    if (big === 0) return ['0', '0'];
-    if (big >= 100)  return [vmin.toFixed(0), vmax.toFixed(0)];
-    if (big >= 0.01) return [vmin.toFixed(2), vmax.toFixed(2)];
-    const exp = Math.floor(Math.log10(big));
-    const scale = Math.pow(10, exp);
-    const supStr = '×10' + supExp(exp);
-    return [(vmin/scale).toFixed(2) + supStr, (vmax/scale).toFixed(2) + supStr];
-  }
-  const [tmin, tmax] = fmtPair(mapData.vmin, mapData.vmax);
+  // Colorbar tick labels — share a single exponent across min and max
+  // via the top-level fmtVal helper.
+  const tmin = fmtVal(mapData.vmin, mapData.vmin, mapData.vmax);
+  const tmax = fmtVal(mapData.vmax, mapData.vmin, mapData.vmax);
   document.getElementById('cb-min').textContent = tmin;
   document.getElementById('cb-max').textContent = tmax;
   // Use a non-breaking space when the unit is empty so the title element
@@ -485,7 +489,9 @@ function buildHoverHtml(roiIdx, vertexIdx) {
   let valStr = '';
   if (vertexIdx >= 0 && vertexIdx < mv.length) {
     const v = mv[vertexIdx];
-    const txt = Number.isFinite(v) ? v.toFixed(3) : 'n/a';
+    const txt = Number.isFinite(v)
+      ? fmtVal(v, mapData.vmin, mapData.vmax)
+      : 'n/a';
     valStr = `<div class="tooltip-map-val">${escapeHtml(mapData.label)}: ${txt}</div>`;
   }
   return `<div class="tooltip-header">
@@ -505,7 +511,9 @@ function buildPinnedHtml(roiIdx, vertexIdx) {
   let valStr = '';
   if (vertexIdx >= 0 && vertexIdx < mv.length) {
     const v = mv[vertexIdx];
-    const txt = Number.isFinite(v) ? v.toFixed(3) : 'n/a';
+    const txt = Number.isFinite(v)
+      ? fmtVal(v, mapData.vmin, mapData.vmax)
+      : 'n/a';
     valStr = `<div class="tooltip-map-val">${escapeHtml(mapData.label)}: ${txt}</div>`;
   }
   const q = topQuery[roiIdx] || [];
