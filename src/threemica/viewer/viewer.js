@@ -846,94 +846,70 @@ init();
     const onEsc = (e) => { if (e.key === 'Escape') demoCancelled = true; };
     document.addEventListener('keydown', onEsc);
 
-    const saved = {
-      map: activeMapIdx,
-      theme: document.body.classList.contains('theme-white'),
-      cmapPos: currentCmapPos,
-      cmapDiv: currentCmapDiv,
-      opacity: cortexOpacity,
-      wireframe: wireframeVisible,
-      hover: hoverEnabled,
-      morphT,
-    };
+    const n = (PAYLOAD && PAYLOAD.maps) ? PAYLOAD.maps.length : 1;
+    const PER_MAP_MS = 2400;   // ~2.4s per map (slower than before)
+    const HALF = PER_MAP_MS / 2;
+    const alive = () => !demoCancelled;
 
-    const TOTAL_MS = 6000;
-    const start = performance.now();
-    const elapsed = () => performance.now() - start;
-    const alive = () => !demoCancelled && elapsed() < TOTAL_MS;
-
-    switchMap(0);
-    morphT = 0; applyMorph();
     hoverEnabled = true;
-
-    // Constant autorotate (~2 revolutions over the demo)
     controlsL.autoRotate = controlsR.autoRotate = true;
-    controlsL.autoRotateSpeed = controlsR.autoRotateSpeed = 30;
+    controlsL.autoRotateSpeed = controlsR.autoRotateSpeed = 18;  // slower
 
-    const inflationLoop = (async () => {
-      while (alive()) {
-        await animateMorph(0, 2, 900);  if (!alive()) break;
-        await animateMorph(2, 0, 900);
-      }
-    })();
-    const mapLoop = (async () => {
-      const n = (PAYLOAD && PAYLOAD.maps) ? PAYLOAD.maps.length : 1;
-      let i = 0;
-      while (alive()) {
-        await sleep(1200);  if (!alive()) break;
-        i = (i + 1) % n; switchMap(i);
-      }
-    })();
+    // Background loops — colormap cycle, occasional theme flip.
     const cmapLoop = (async () => {
-      while (alive()) {
-        await sleep(700);  if (!alive()) break;
+      while (alive() && demoActive) {
+        await sleep(900);  if (!alive() || !demoActive) break;
         cycleColormap();
       }
     })();
     const themeLoop = (async () => {
-      while (alive()) {
-        await sleep(1000);  if (!alive()) break;
+      while (alive() && demoActive) {
+        await sleep(1500);  if (!alive() || !demoActive) break;
         if (Math.random() < 0.20) document.body.classList.toggle('theme-white');
       }
     })();
-    // Demo a pinned query: synthetic right-click ~2.2s in, unpin shortly after.
-    const queryLoop = (async () => {
-      await sleep(2200);  if (!alive()) return;
-      pinSamplePoint();
-      await sleep(1400);
-      unpinTooltip();
-    })();
 
-    await Promise.all([inflationLoop, mapLoop, cmapLoop, themeLoop, queryLoop]);
+    // Main pass: visit each map exactly once with one inflate↔deflate cycle.
+    // Pin a sample query in the middle of the run (so user sees the popup).
+    const pinAtMap = Math.floor(n / 2);
+    for (let i = 0; i < n && alive(); i++) {
+      switchMap(i);
+      morphT = 0; applyMorph();
+      if (i === pinAtMap) setTimeout(() => { if (alive() && demoActive) pinSamplePoint(); }, HALF / 2);
+      await animateMorph(0, 2, HALF);  if (!alive()) break;
+      await animateMorph(2, 0, HALF);  if (!alive()) break;
+      if (i === pinAtMap) unpinTooltip();
+    }
 
-    // ── Restore default view ─────────────────────────────────────────────
+    demoActive = false;             // stop background loops
+    await Promise.allSettled([cmapLoop, themeLoop]);
+
+    // ── Restore to first-open default ────────────────────────────────────
     controlsL.autoRotate = controlsR.autoRotate = false;
     cameraL.position.set(-CAM_DIST, 0, 0); cameraL.up.set(0, 0, 1);
     controlsL.target.set(0, 0, 0); controlsL.update();
     cameraR.position.set( CAM_DIST, 0, 0); cameraR.up.set(0, 0, 1);
     controlsR.target.set(0, 0, 0); controlsR.update();
     unpinTooltip();
-
-    switchMap(saved.map);
-    if (document.body.classList.contains('theme-white') !== saved.theme) {
-      document.body.classList.toggle('theme-white');
+    if (document.body.classList.contains('theme-white')) {
+      document.body.classList.remove('theme-white');
     }
-    currentCmapPos = saved.cmapPos;
-    currentCmapDiv = saved.cmapDiv;
-    currentCmap = (PAYLOAD.maps[activeMapIdx].cmap_type === 'diverging')
+    currentCmapPos = 'plasma';
+    currentCmapDiv = 'coolwarm';
+    hoverEnabled = false;
+    cortexOpacity = 1.0; applyOpacity();
+    wireframeVisible = true;
+    if (wireL) wireL.visible = true;
+    if (wireR) wireR.visible = true;
+    morphT = 0; applyMorph();
+    switchMap(0);
+    currentCmap = (PAYLOAD.maps[0].cmap_type === 'diverging')
       ? currentCmapDiv : currentCmapPos;
     drawColorbar();
     if (meshL) recolorMesh('lh', meshL);
     if (meshR) recolorMesh('rh', meshR);
-    cortexOpacity = saved.opacity; applyOpacity();
-    wireframeVisible = saved.wireframe;
-    if (wireL) wireL.visible = wireframeVisible;
-    if (wireR) wireR.visible = wireframeVisible;
-    hoverEnabled = saved.hover;
-    morphT = saved.morphT; applyMorph();
 
     document.removeEventListener('keydown', onEsc);
-    demoActive = false;
     flashCheat(demoCancelled ? 'Demo cancelled.' : 'Demo complete.', 900);
   }
 })();
