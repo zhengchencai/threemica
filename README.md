@@ -8,11 +8,13 @@ HTML viewer per subject — with the YBA-696 atlas overlay, Parcelquery and
 Parcelsynth top-term lookups, optional smoothing, and a hidden demo.
 
 <p align="center">
-  <video src="docs/demo.mp4" controls autoplay muted loop playsinline width="720">
-    Your viewer can't render the video; see
-    <a href="docs/demo.mp4">docs/demo.mp4</a>.
+  <video src="https://github.com/zhengchencai/threemica/raw/master/docs/demo.mp4"
+         controls autoplay muted loop playsinline width="720">
   </video>
 </p>
+
+> If the video above doesn't render in your viewer, watch it directly:
+> [docs/demo.mp4](https://github.com/zhengchencai/threemica/raw/master/docs/demo.mp4)
 
 ## Install
 
@@ -119,4 +121,4 @@ There's also a hidden demo: `Enter`, type `poweroverwhelming`, `Enter`.
 
 ## License
 
-MIT.
+GPL-3.0-or-later (matches micapipe). See [LICENSE](LICENSE).
