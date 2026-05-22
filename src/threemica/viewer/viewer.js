@@ -841,6 +841,25 @@ init();
     c.dispatchEvent(evt);
   }
 
+  // Synthetic mousemove → shows the floating hover tooltip (no pin).
+  function hoverAt(fx, fy) {
+    const c = document.getElementById('container-left');
+    if (!c) return;
+    const r = c.getBoundingClientRect();
+    const evt = new MouseEvent('mousemove', {
+      clientX: r.left + r.width * fx,
+      clientY: r.top  + r.height * fy,
+      bubbles: true, cancelable: true,
+    });
+    c.dispatchEvent(evt);
+  }
+  function clearHover() {
+    const evt = new MouseEvent('mousemove', {
+      clientX: -100, clientY: -100, bubbles: true, cancelable: true,
+    });
+    document.dispatchEvent(evt);
+  }
+
   async function runDemo() {
     if (demoActive) return;
     demoActive = true;
@@ -925,17 +944,32 @@ init();
     if (meshL) recolorMesh('lh', meshL);
     if (meshR) recolorMesh('rh', meshR);
 
-    // ── Epilogue: 3 sample hover-query pins, 2s each ─────────────────────
+    // ── Epilogue: 5 sample query locations, ~1.3s each ───────────────────
+    //   First 2 → floating hover tooltip only.
+    //   Last 3  → full pinned panel (Parcelquery + Parcelsynth).
     if (alive()) {
       hoverEnabled = true;
-      await sleep(500);
-      const positions = [[0.35, 0.45], [0.55, 0.40], [0.55, 0.65]];
-      for (const [fx, fy] of positions) {
+      await sleep(400);
+      const positions = [
+        [0.32, 0.42, 'hover'],
+        [0.58, 0.48, 'hover'],
+        [0.35, 0.52, 'pin'  ],
+        [0.55, 0.36, 'pin'  ],
+        [0.60, 0.62, 'pin'  ],
+      ];
+      const PER = 1300;
+      for (const [fx, fy, kind] of positions) {
         if (!alive()) break;
-        pinSamplePoint(fx, fy);
-        await sleep(2000);
-        unpinTooltip();
-        await sleep(150);
+        if (kind === 'hover') {
+          hoverAt(fx, fy);
+          await sleep(PER);
+          clearHover();
+        } else {
+          pinSamplePoint(fx, fy);
+          await sleep(PER);
+          unpinTooltip();
+        }
+        await sleep(120);
       }
       hoverEnabled = false;
       unpinTooltip();
