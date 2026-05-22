@@ -78,7 +78,7 @@ def load_or_copy_scope(bids_root, console: Console | None = None) -> Dict[str, A
         console.print(
             f"[yellow]threemica_scope.json[/] copied to [cyan]derivatives/[/]. "
             "Edit it to customize what threemica scans — otherwise it will use "
-            "the default scope (thickness, curv, midthickness FA/ADC/T1map/cbf)."
+            "the default scope (thickness, midthickness FA/ADC/T1map/cbf)."
         )
     else:
         console.print(

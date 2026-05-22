@@ -74,7 +74,6 @@ This is where you declare what threemica should plot. Three-level structure:
   "micapipe_v0.2.0": {
     "maps": [
       {"tag": "thickness",          "label": "Cortical Thickness", "unit": "mm",          "cmap": "pos-only"},
-      {"tag": "curv",               "label": "Curvature",          "unit": "1/mm",        "cmap": "diverging"},
       {"tag": "midthickness_FA",    "label": "FA",                 "unit": "",            "cmap": "pos-only"},
       {"tag": "midthickness_ADC",   "label": "ADC",                "unit": "mm²/s",       "cmap": "pos-only"},
       {"tag": "midthickness_T1map", "label": "Quantitative T1",    "unit": "s",           "cmap": "pos-only", "scale": 0.001},
