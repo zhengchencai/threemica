@@ -214,9 +214,7 @@ def build_payload(
             raise RuntimeError(f"Map vertex count mismatch in map {i}")
 
         all_vals = np.concatenate([map_lh_vals, map_rh_vals])
-        vmin = float(clims[i][0]) if clims[i] else float(np.nanmin(all_vals))
-        vmax = float(clims[i][1]) if clims[i] else float(np.nanmax(all_vals))
-        
+
         inferred_label, inferred_cmap_type = guess_map_settings(map_lhs[i].name)
 
         final_label = labels[i] if (labels and i < len(labels) and labels[i]) else inferred_label
@@ -224,6 +222,17 @@ def build_payload(
             cmap_types[i] if (cmap_types and i < len(cmap_types) and cmap_types[i])
             else inferred_cmap_type
         )
+
+        if clims[i]:
+            vmin = float(clims[i][0])
+            vmax = float(clims[i][1])
+        elif final_cmap == "diverging":
+            m = max(abs(float(np.nanmin(all_vals))),
+                    abs(float(np.nanmax(all_vals))))
+            vmin, vmax = -m, m
+        else:  # pos-only — data min..max (NOT 0..max)
+            vmin = float(np.nanmin(all_vals))
+            vmax = float(np.nanmax(all_vals))
 
         maps_data.append({
             "label":      final_label,
