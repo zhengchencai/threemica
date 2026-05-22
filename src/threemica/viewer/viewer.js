@@ -9,19 +9,18 @@ const CMAPS = {
   viridis:  [[68,1,84],[72,40,120],[62,83,160],[49,104,142],[38,130,142],[31,158,137],[53,183,121],[110,206,88],[181,222,43],[253,231,37]],
   inferno:  [[0,0,4],[40,11,84],[101,21,110],[159,42,99],[212,72,66],[245,125,21],[252,193,7],[252,255,164]],
   hot:      [[10,0,0],[128,0,0],[255,64,0],[255,178,0],[255,255,200],[255,255,255]],
-  magma:    [[0,0,4],[28,16,68],[79,18,123],[129,37,129],[181,54,122],[229,89,100],[251,135,97],[254,194,140],[252,253,191]],
   cividis:  [[0,32,77],[0,67,100],[60,92,107],[107,116,118],[152,141,118],[199,168,107],[241,198,68],[253,232,37]],
   RdBu_r:   [[33,102,172],[67,147,195],[146,197,222],[209,229,240],[247,247,247],[253,219,199],[239,138,98],[178,24,43]],
   coolwarm: [[59,76,192],[98,130,234],[141,176,254],[184,208,249],[221,220,220],[249,196,184],[244,154,123],[220,100,66],[180,4,38]],
   spectral: [[94,79,162],[50,136,189],[102,194,165],[171,221,164],[230,245,152],[255,255,191],[254,224,139],[253,174,97],[244,109,67],[213,62,79],[158,1,66]],
   gray_r:   [[255,255,255],[0,0,0]],
 };
-const CMAP_CYCLE_POS = ['magma', 'viridis', 'gray_r'];
+const CMAP_CYCLE_POS = ['plasma', 'viridis', 'gray_r'];
 const CMAP_CYCLE_DIV = ['coolwarm', 'RdBu_r'];
 
-let currentCmapPos = 'magma';
+let currentCmapPos = 'plasma';
 let currentCmapDiv = 'coolwarm';
-let currentCmap = 'magma';
+let currentCmap = 'plasma';
 
 function cmapRGB(t, name) {
   const lut = CMAPS[name] || CMAPS.plasma;
@@ -958,7 +957,7 @@ init();
     if (document.body.classList.contains('theme-white')) {
       document.body.classList.remove('theme-white');
     }
-    currentCmapPos = 'magma';
+    currentCmapPos = 'plasma';
     currentCmapDiv = 'coolwarm';
     hoverEnabled = false;
     cortexOpacity = 1.0; applyOpacity();
