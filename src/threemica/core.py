@@ -373,6 +373,34 @@ def _as_resolutions(value) -> Optional[List[str]]:
     return list(value)
 
 
+@dataclass(frozen=True)
+class OutputRoots:
+    base: Path
+    threemica: Path
+
+
+def _resolve_output_roots(bids_root: Path, value: Path) -> OutputRoots:
+    """Resolve output root; owned writes go under `<base>/derivatives/threemica`."""
+    base = Path(value).expanduser().resolve()
+    if base.name == "threemica" and base.parent.name == "derivatives":
+        threemica_root = base
+        base = base.parent.parent
+    elif base.name == "derivatives":
+        threemica_root = base / "threemica"
+        base = base.parent
+    else:
+        threemica_root = base / "derivatives" / "threemica"
+
+    bids_derivatives = (bids_root / "derivatives").resolve()
+    bids_threemica = bids_derivatives / "threemica"
+    if base.is_relative_to(bids_derivatives) and not threemica_root.is_relative_to(bids_threemica):
+        raise ValueError(
+            "Output inside BIDS derivatives must be under "
+            f"{bids_threemica}; refusing to write into {threemica_root}."
+        )
+    return OutputRoots(base=base, threemica=threemica_root)
+
+
 def run(
     bids_root: "str | Path | None" = None,
     *,
@@ -388,17 +416,24 @@ def run(
     """End-to-end. ``bids_root`` defaults to cwd; resolved by walking up
     to find a `derivatives/` child.
 
-    ``output_root`` is the parent directory under which reports land at
-    ``<output_root>/threemica/sub-XX/[ses-YY]/<file>.html``. Default is
-    ``<BIDS>/derivatives``.
+    ``output_root`` is the root under which threemica creates
+    ``derivatives/threemica/sub-XX/[ses-YY]/<file>.html``. Default is
+    ``<BIDS>``.
     """
     resolved = resolve_bids_root(bids_root)
     root = resolved.root
-    if scope is None:
-        scope = load_or_copy_scope(root)
     resolutions = _as_resolutions(resolution)
-    eff_root = Path(output_root) if output_root is not None else (root / "derivatives")
-    print(f"[threemica] Output: {eff_root}/threemica/sub-XX/[ses-YY]/", flush=True)
+    default_output = root
+    if output_root is not None:
+        output_roots = _resolve_output_roots(root, Path(output_root))
+    elif interactive:
+        output_roots = _resolve_output_roots(root, _wizard.pick_output(default_output))
+    else:
+        output_roots = _resolve_output_roots(root, default_output)
+    if scope is None:
+        scope = load_or_copy_scope(output_roots.base)
+    eff_root = output_roots.threemica
+    print(f"[threemica] Output: {eff_root}/sub-XX/[ses-YY]/", flush=True)
 
     if not interactive:
         if not subjects:
@@ -442,7 +477,7 @@ def _run_scripted(
                           if m.resolution == res and m.label in wanted_labels]
                 if not picked:
                     continue
-                this_out = output_root / "threemica" / sub
+                this_out = output_root / sub
                 if ses:
                     this_out = this_out / ses
                 outputs.append(build(

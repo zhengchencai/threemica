@@ -42,3 +42,57 @@ def test_run_scripted_requires_subjects_when_non_interactive(fake_bids, fake_sco
             interactive=False,
             scope=fake_scope,
         )
+
+
+def test_output_root_inside_non_threemica_derivative_is_rejected(fake_bids, fake_scope):
+    import pytest
+
+    with pytest.raises(ValueError, match="derivatives/threemica"):
+        run(
+            bids_root=fake_bids,
+            subjects=["sub-001"],
+            sessions=["ses-01"],
+            maps=["thickness"],
+            resolution="fsLR-5k",
+            output_root=fake_bids / "derivatives" / "micapipe_v0.2.0",
+            interactive=False,
+            scope=fake_scope,
+        )
+
+
+def test_custom_output_root_does_not_write_to_bids_derivatives(fake_bids, fake_scope, tmp_path):
+    output_root = tmp_path / "outside-bids"
+
+    paths = run(
+        bids_root=fake_bids,
+        subjects=["sub-001"],
+        sessions=["ses-01"],
+        maps=["thickness"],
+        resolution="fsLR-5k",
+        output_root=output_root,
+        interactive=False,
+        scope=fake_scope,
+    )
+
+    assert len(paths) == 1
+    assert paths[0].is_relative_to(output_root / "derivatives" / "threemica")
+    assert not (fake_bids / "derivatives" / "threemica").exists()
+
+
+def test_custom_output_root_places_scope_outside_bids(fake_bids, tmp_path):
+    output_root = tmp_path / "outside-bids"
+
+    paths = run(
+        bids_root=fake_bids,
+        subjects=["sub-001"],
+        sessions=["ses-01"],
+        maps=["thickness"],
+        resolution="fsLR-5k",
+        output_root=output_root,
+        interactive=False,
+    )
+
+    assert len(paths) == 1
+    assert (output_root / "derivatives" / "threemica" / "threemica_scope.json").exists()
+    assert paths[0].is_relative_to(output_root / "derivatives" / "threemica")
+    assert not (fake_bids / "derivatives" / "threemica").exists()

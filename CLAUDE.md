@@ -10,6 +10,10 @@ derivatives folder; it scans, lets the user pick subjects + feature maps, and
 writes one HTML per subject(/session) with the YBA-696 atlas hover overlay
 (Parcelquery / Parcelsynth top terms).
 
+All threemica-owned writes must stay under the selected output root's
+`derivatives/threemica/`. Source derivative folders such as micapipe are
+read-only inputs: do not add, delete, or edit files there.
+
 ## Architecture
 
 ```
@@ -17,7 +21,7 @@ src/threemica/
 ├── __init__.py         # Public re-exports
 ├── core.py             # Public API: resolve_micapipe_root, scan, build, run, FeatureMap
 ├── cli.py              # `threemica` console script (thin wrapper over core.run)
-├── _wizard.py          # questionary pickers (pick_subjects, pick_maps, pick_resolution)
+├── _wizard.py          # questionary pickers (pick_output, subjects, maps, resolution)
 ├── builder.py          # build_payload() — report payload construction
 ├── resample.py         # Surface/metric resampling via wb_command (optional)
 ├── _resources.py       # importlib.resources accessors for bundle
@@ -50,7 +54,7 @@ threemica.FeatureMap            # dataclass(label, resolution, lh_path, rh_path)
 threemica [PATH] [--subjects ...] [--sessions ...] [--maps ...]
                  [--resolution fsLR-5k|fsLR-32k]
                  [--surface individual|template]
-                 [--out DIR] [--batch]
+                 [--out ROOT] [--batch]
 ```
 
 - No args → fully interactive

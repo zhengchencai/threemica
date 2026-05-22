@@ -2,10 +2,11 @@
 
 Three.js HTML reports for MICA-pipeline–style surface maps.
 
-Point it at a BIDS `derivatives/` folder, edit one tiny `threemica_scope.json`
-to say which maps you care about, and `threemica` writes a self-contained
-HTML viewer per subject — with the YBA-696 atlas overlay, Parcelquery and
-Parcelsynth top-term lookups, optional smoothing, and a hidden demo.
+Point it at a BIDS `derivatives/` folder, edit one tiny
+`derivatives/threemica/threemica_scope.json` to say which maps you care about,
+and `threemica` writes a self-contained HTML viewer per subject — with the
+YBA-696 atlas overlay, Parcelquery and Parcelsynth top-term lookups, optional
+smoothing, and a hidden demo.
 
 <p align="center">
   <img src="docs/demo1.gif" alt="threemica demo" width="100%">
@@ -33,13 +34,20 @@ want runtime smoothing.
 
 ```bash
 cd /path/to/BIDS          # anything containing derivatives/
-threemica                 # first run copies threemica_scope.json into derivatives/
+threemica                 # first run copies threemica_scope.json into derivatives/threemica/
 ```
 
-Edit `derivatives/threemica_scope.json` to declare what to scan, then run
-again. The wizard asks for subjects, sessions (if any), resolution and
-smoothing FWHM. Outputs land in
-`<BIDS>/derivatives/threemica/sub-XX/[ses-YY]/`.
+Edit `derivatives/threemica/threemica_scope.json` to declare what to scan, then
+run again. The wizard asks for output root, subjects, sessions (if any),
+resolution and smoothing FWHM. By default, outputs land in
+`<BIDS>/derivatives/threemica/sub-XX/[ses-YY]/`. If you choose another output
+root, outputs land in `<OUTPUT_ROOT>/derivatives/threemica/sub-XX/[ses-YY]/`.
+The scope file is created in that same `derivatives/threemica/` folder.
+
+threemica only writes its own config, temporary smoothing files, and HTML
+reports under the selected output root's `derivatives/threemica/`. It reads
+source maps/surfaces from micapipe and other derivatives, but does not modify
+those derivative folders.
 
 ### scope.json — the only thing you'll edit
 
@@ -89,10 +97,75 @@ smoothing FWHM. Outputs land in
 ```
 threemica [PATH] [--subjects sub-001 …] [--sessions ses-01 …]
                  [--maps thickness …] [--resolution fsLR-32k [fsLR-5k]]
-                 [--smooth FWHM_MM] [--output PARENT_DIR]
+                 [--smooth FWHM_MM] [--output ROOT]
 ```
 
 `threemica --help` for the full list.
+
+## Embed In Another Python HTML Report
+
+`threemica` can be called from an existing Python report builder and embedded
+into the same final HTML file. Generate the threemica viewer, read the generated
+HTML, and place it inside an iframe with `srcdoc`.
+
+```python
+from pathlib import Path
+import html
+
+from threemica import run
+
+
+def build_report_with_threemica(bids_root, report_root):
+    report_root = Path(report_root)
+
+    viewer_paths = run(
+        bids_root=bids_root,
+        subjects=["sub-001"],
+        sessions=["ses-01"],
+        maps=["thickness"],
+        resolution="fsLR-32k",
+        output_root=report_root,
+        interactive=False,
+    )
+
+    viewer_html = viewer_paths[0]
+    viewer_text = viewer_html.read_text(encoding="utf-8")
+
+    threemica_panel = f"""
+    <iframe
+      srcdoc="{html.escape(viewer_text, quote=True)}"
+      style="width:100%; height:900px; border:0;"
+      loading="lazy">
+    </iframe>
+    """
+
+    report_html = f"""
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>My Report</title>
+    </head>
+    <body>
+      <h1>My Report</h1>
+
+      <section>
+        <h2>Surface Viewer</h2>
+        {threemica_panel}
+      </section>
+    </body>
+    </html>
+    """
+
+    out = report_root / "report.html"
+    out.write_text(report_html, encoding="utf-8")
+    return out
+```
+
+This creates one parent `report.html` containing the threemica viewer. The
+intermediate threemica HTML remains under
+`<report_root>/derivatives/threemica/`, but the final report does not need to
+link to it.
 
 ## Viewer controls
 

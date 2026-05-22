@@ -64,8 +64,8 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path, default=None,
         dest="output",
         help="Output root. Reports land under "
-        "<output>/threemica/sub-XX/[ses-YY]/. "
-        "Default: <BIDS>/derivatives/.",
+        "<output>/derivatives/threemica/sub-XX/[ses-YY]/. "
+        "Default: <BIDS>.",
     )
     p.add_argument(
         "--batch",

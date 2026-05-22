@@ -1,4 +1,4 @@
-"""Scope loader. Reads `<BIDS>/derivatives/threemica_scope.json`.
+"""Scope loader. Reads `<BIDS>/derivatives/threemica/threemica_scope.json`.
 
 A scope's `subdir → tag-list` entry can hold either:
   - a plain string tag (use defaults from MAP_SETTINGS for display)
@@ -27,6 +27,10 @@ def _example_path() -> Path:
 
 
 def scope_path(bids_root) -> Path:
+    return Path(bids_root) / "derivatives" / "threemica" / _FILENAME
+
+
+def _legacy_scope_path(bids_root) -> Path:
     return Path(bids_root) / "derivatives" / _FILENAME
 
 
@@ -74,15 +78,18 @@ def load_or_copy_scope(bids_root, console: Console | None = None) -> Dict[str, A
     dst = scope_path(bids_root)
     dst.parent.mkdir(parents=True, exist_ok=True)
     if not dst.exists():
-        shutil.copy(_example_path(), dst)
+        src = _legacy_scope_path(bids_root)
+        if not src.exists():
+            src = _example_path()
+        shutil.copy(src, dst)
         console.print(
-            f"[yellow]threemica_scope.json[/] copied to [cyan]derivatives/[/]. "
+            f"[yellow]threemica_scope.json[/] copied to [cyan]derivatives/threemica/[/]. "
             "Edit it to customize what threemica scans — otherwise it will use "
             "the default scope (thickness, midthickness FA/ADC/T1map/cbf)."
         )
     else:
         console.print(
-            f"[green]threemica_scope.json[/] found in [cyan]derivatives/[/]. "
+            f"[green]threemica_scope.json[/] found in [cyan]derivatives/threemica/[/]. "
             "Edit it if you want to change the scope."
         )
     with dst.open() as f:

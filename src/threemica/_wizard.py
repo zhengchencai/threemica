@@ -1,6 +1,7 @@
 """Interactive pickers — isolated for easy mocking in tests."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import List, Optional
 
 import questionary
@@ -94,6 +95,21 @@ def pick_smooth(default: Optional[int] = None) -> Optional[int]:
     except ValueError:
         return None
     return val if val > 0 else None
+
+
+def pick_output(default: Path) -> Path:
+    """Prompt for output root. Empty/cancel keeps the displayed default."""
+    raw = questionary.text(
+        "Output root:",
+        default=str(default),
+        style=_STYLE,
+    ).ask()
+    if raw is None:
+        return default
+    raw = raw.strip()
+    if not raw:
+        return default
+    return Path(raw).expanduser()
 
 
 def pick_resolution(
