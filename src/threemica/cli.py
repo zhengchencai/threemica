@@ -60,10 +60,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "Omit or 0 = no smoothing.",
     )
     p.add_argument(
-        "--out",
-        type=Path,
-        default=None,
-        help="Override the output directory.",
+        "--output", "--out",
+        type=Path, default=None,
+        dest="output",
+        help="Output root. Reports land under "
+        "<output>/threemica/sub-XX/[ses-YY]/. "
+        "Default: <BIDS>/derivatives/.",
     )
     p.add_argument(
         "--batch",
@@ -87,7 +89,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             sessions=args.sessions,
             maps=args.maps,
             resolution=args.resolution,
-            out_dir=args.out,
+            output_root=args.output,
             smooth_mm=(args.smooth if args.smooth and args.smooth > 0 else None),
             interactive=not args.batch,
         )

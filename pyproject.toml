@@ -9,7 +9,10 @@ description = "Three.js HTML reports for MicaPipe surface maps"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "GPL-3.0-or-later" }
-authors = [{ name = "zhengchencai" }]
+authors = [
+    { name = "zhengchencai", email = "zhengchen.cai@gmail.com" },
+    { name = "Claude (Anthropic)" },
+]
 dependencies = [
     "nibabel>=5",
     "numpy>=1.23",

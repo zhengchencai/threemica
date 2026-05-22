@@ -380,18 +380,25 @@ def run(
     sessions: Optional[List[str]] = None,
     maps: Optional[List[str]] = None,
     resolution: "Optional[str | List[str]]" = None,
-    out_dir: Optional[Path] = None,
+    output_root: Optional[Path] = None,
     smooth_mm: Optional[int] = None,
     interactive: bool = True,
     scope: Optional[Dict[str, Any]] = None,
 ) -> List[Path]:
     """End-to-end. ``bids_root`` defaults to cwd; resolved by walking up
-    to find a `derivatives/` child."""
+    to find a `derivatives/` child.
+
+    ``output_root`` is the parent directory under which reports land at
+    ``<output_root>/threemica/sub-XX/[ses-YY]/<file>.html``. Default is
+    ``<BIDS>/derivatives``.
+    """
     resolved = resolve_bids_root(bids_root)
     root = resolved.root
     if scope is None:
         scope = load_or_copy_scope(root)
     resolutions = _as_resolutions(resolution)
+    eff_root = Path(output_root) if output_root is not None else (root / "derivatives")
+    print(f"[threemica] Output: {eff_root}/threemica/sub-XX/[ses-YY]/", flush=True)
 
     if not interactive:
         if not subjects:
@@ -404,14 +411,14 @@ def run(
             bids_root=root, scope=scope,
             subjects=subjects, sessions=sessions,
             map_labels=maps, resolutions=resolutions,
-            out_dir=out_dir, smooth_mm=smooth_mm,
+            output_root=eff_root, smooth_mm=smooth_mm,
         )
 
     return _run_interactive(
         bids_root=root, scope=scope, resolved=resolved,
         subjects=subjects, sessions=sessions,
         map_labels=maps, resolutions=resolutions,
-        out_dir=out_dir, smooth_mm=smooth_mm,
+        output_root=eff_root, smooth_mm=smooth_mm,
     )
 
 
@@ -420,7 +427,7 @@ def _run_scripted(
     bids_root: Path, scope: dict,
     subjects: List[str], sessions: Optional[List[str]],
     map_labels: List[str], resolutions: List[str],
-    out_dir: Optional[Path], smooth_mm: Optional[int],
+    output_root: Path, smooth_mm: Optional[int],
 ) -> List[Path]:
     outputs: List[Path] = []
     wanted_labels = set(map_labels)
@@ -435,10 +442,13 @@ def _run_scripted(
                           if m.resolution == res and m.label in wanted_labels]
                 if not picked:
                     continue
+                this_out = output_root / "threemica" / sub
+                if ses:
+                    this_out = this_out / ses
                 outputs.append(build(
                     bids_root=bids_root, scope=scope,
                     subject=sub, session=ses, maps=picked,
-                    resolution=res, out_dir=out_dir, smooth_mm=smooth_mm,
+                    resolution=res, out_dir=this_out, smooth_mm=smooth_mm,
                 ))
     return outputs
 
@@ -448,7 +458,7 @@ def _run_interactive(
     bids_root: Path, scope: dict, resolved: ResolvedRoot,
     subjects: Optional[List[str]], sessions: Optional[List[str]],
     map_labels: Optional[List[str]], resolutions: Optional[List[str]],
-    out_dir: Optional[Path], smooth_mm: Optional[int],
+    output_root: Path, smooth_mm: Optional[int],
 ) -> List[Path]:
     all_subjects = list_subjects(bids_root, scope)
     if subjects is None:
@@ -506,7 +516,7 @@ def _run_interactive(
         bids_root=bids_root, scope=scope,
         subjects=subjects, sessions=sessions,
         map_labels=map_labels, resolutions=resolutions,
-        out_dir=out_dir, smooth_mm=smooth_mm,
+        output_root=output_root, smooth_mm=smooth_mm,
     )
 
 
