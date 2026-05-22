@@ -453,7 +453,9 @@ def _run_interactive(
 
     if resolutions is None:
         res_candidates = sorted({r for _, r in all_pairs})
-        resolutions = _wizard.pick_resolution(res_candidates)
+        # Default to fsLR-32k only (the visualization standard) when available
+        default = ["fsLR-32k"] if "fsLR-32k" in res_candidates else None
+        resolutions = _wizard.pick_resolution(res_candidates, default=default)
     if not resolutions:
         return []
 
