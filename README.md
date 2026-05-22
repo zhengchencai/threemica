@@ -11,6 +11,11 @@ Parcelsynth top-term lookups, optional smoothing, and a hidden demo.
   <img src="docs/demo1.gif" alt="threemica demo" width="100%">
 </p>
 
+<p align="center">
+  <video src="docs/demo.mp4" autoplay muted loop playsinline width="100%">
+  </video>
+</p>
+
 ## Install
 
 Always in a fresh env so threemica's deps don't touch existing ones:
