@@ -12,7 +12,7 @@ Parcelsynth top-term lookups, optional smoothing, and a hidden demo.
 </p>
 
 <p align="center">
-  <video src="docs/demo.mp4" autoplay muted loop playsinline width="100%">
+  <video src="https://github.com/user-attachments/assets/4c173394-041d-451b-9dcf-8dab67a4aa4a" autoplay muted loop playsinline width="100%">
   </video>
 </p>
 
