@@ -1,66 +1,52 @@
 """Public Python API for threemica."""
 from __future__ import annotations
 
+import json as _json
 import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from threemica import _wizard
+from threemica._resources import viewer_template, viewer_js
+from threemica._scope import load_or_copy_scope
+from threemica.builder import build_payload
 
+
+_SUB_RE = re.compile(r"^sub-")
+_SES_RE = re.compile(r"^ses-")
+_SUB_FROM_DIR_RE = re.compile(r"^sub-[^_/]+$")
+
+
+# ---------------------------------------------------------------------------
+# BIDS root resolution
+# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class ResolvedRoot:
-    """The MicaPipe derivatives root, plus optional preselected subject/session."""
+    """A BIDS root (parent of `derivatives/`), plus optional preselected sub/ses."""
 
     root: Path
     subject: Optional[str] = None
     session: Optional[str] = None
 
 
-_MP_DIR_RE = re.compile(r"^micapipe(?:[._-].*)?$")
-_SUB_RE = re.compile(r"^sub-")
-_SES_RE = re.compile(r"^ses-")
-
-
-def _is_micapipe_dir(p: Path) -> bool:
-    return p.is_dir() and bool(_MP_DIR_RE.match(p.name))
-
-
-def _find_micapipe_under(parent: Path) -> Optional[Path]:
-    """If parent has a derivatives/ subdir containing one or more micapipe* dirs,
-    return the lexically last one. Else None."""
-    deriv = parent / "derivatives"
-    if not deriv.is_dir():
-        return None
-    candidates = sorted(p for p in deriv.iterdir() if _is_micapipe_dir(p))
-    return candidates[-1] if candidates else None
-
-
-def resolve_micapipe_root(path: "str | Path | None" = None) -> ResolvedRoot:
-    """Resolve a user-given path (or cwd) to a MicaPipe derivatives root.
-
-    Rules (first match wins):
-      1. path is inside derivatives/micapipe*/sub-XX/ses-YY -> root + sub + ses
-      2. path is derivatives/micapipe*/sub-XX -> root + sub
-      3. path is a derivatives/micapipe* dir -> root only
-      4. path is a BIDS root (has derivatives/) -> pick latest micapipe*
-      5. else raise FileNotFoundError
+def resolve_bids_root(path: "str | Path | None" = None) -> ResolvedRoot:
+    """Walk up from ``path`` (or cwd) until we find a folder with a `derivatives/`
+    child. Record any `sub-XX` / `ses-YY` segments seen on the way up so the
+    wizard can pre-select them.
     """
-    p = Path(path) if path is not None else Path.cwd()
-    p = p.resolve()
+    p = (Path(path) if path is not None else Path.cwd()).resolve()
     if not p.exists():
         raise FileNotFoundError(f"Path does not exist: {p}")
 
-    # Walk up at most 3 levels to find a micapipe-* dir we sit inside
     candidate = p
-    subject = None
-    session = None
-    for _ in range(3):
-        if _is_micapipe_dir(candidate):
+    subject: Optional[str] = None
+    session: Optional[str] = None
+    for _ in range(8):  # up to 8 levels up is plenty for any BIDS tree
+        if (candidate / "derivatives").is_dir():
             return ResolvedRoot(root=candidate, subject=subject, session=session)
-        # Record sub-/ses- pieces as we climb so we can preselect them
         if _SES_RE.match(candidate.name) and session is None:
             session = candidate.name
         elif _SUB_RE.match(candidate.name) and subject is None:
@@ -69,173 +55,202 @@ def resolve_micapipe_root(path: "str | Path | None" = None) -> ResolvedRoot:
             break
         candidate = candidate.parent
 
-    # path may be a BIDS root with derivatives/micapipe*
-    mp = _find_micapipe_under(p)
-    if mp is not None:
-        return ResolvedRoot(root=mp)
-
     raise FileNotFoundError(
-        f"Could not locate a MicaPipe derivatives root from {p}. "
-        f"Expected a derivatives/micapipe* directory, a subject inside one, "
-        f"or a BIDS root that contains derivatives/micapipe*."
+        f"Could not locate a BIDS root from {p}. "
+        f"Expected a folder containing 'derivatives/'."
     )
 
 
-__all__ = ["ResolvedRoot", "resolve_micapipe_root"]
+__all__ = ["ResolvedRoot", "resolve_bids_root"]
 
 
 # ---------------------------------------------------------------------------
-# FeatureMap dataclass + scan()
+# FeatureMap + scope-driven scan
 # ---------------------------------------------------------------------------
-
-_MAP_FNAME_RE = re.compile(
-    r"^sub-[^_]+(?:_ses-[^_]+)?"
-    r"_hemi-(?P<hemi>[LR])"
-    r"_surf-(?P<res>fsLR-5k|fsLR-32k)"
-    r"_label-(?P<label>[^.]+)\.func\.gii$"
-)
-
 
 @dataclass(frozen=True)
 class FeatureMap:
-    """A LH/RH paired surface map at one resolution."""
+    """A LH/RH paired surface map at one resolution, from one scope entry."""
 
-    label: str
-    resolution: str
+    label: str          # exact `_label-X.func.gii` value, == the scope tag
+    resolution: str     # fsLR-5k or fsLR-32k
+    derivative: str     # the derivative folder this came from
+    subdir: str         # the subdir under <sub>/[ses]/
     lh_path: Path
     rh_path: Path
+    display_label: str = ""  # what the report shows top-left (e.g. "Cortical Thickness")
+    unit: str = ""           # colorbar unit (e.g. "mm")
+    cmap: str = "pos-only"   # "pos-only" or "diverging"
 
 
-def _scan_maps_dir(maps_dir: Path) -> list[FeatureMap]:
-    """Return both-hemi FeatureMaps found in a single maps/ directory."""
+def _resolutions_supported() -> tuple:
+    return ("fsLR-5k", "fsLR-32k")
+
+
+def _find_paired(
+    maps_dir: Path, tag: str, resolution: str
+) -> Optional[tuple[Path, Path]]:
+    """Find LH+RH paired files in ``maps_dir`` whose `_label-` value equals ``tag``
+    exactly, at ``resolution``. Raises if more than one match per hemisphere.
+    """
     if not maps_dir.is_dir():
-        return []
-    by_key: dict[tuple, dict] = {}
-    for f in sorted(maps_dir.iterdir()):
-        m = _MAP_FNAME_RE.match(f.name)
-        if not m:
+        return None
+    needle_l = f"_hemi-L_surf-{resolution}_label-{tag}.func.gii"
+    needle_r = f"_hemi-R_surf-{resolution}_label-{tag}.func.gii"
+    lhs = [p for p in maps_dir.iterdir() if p.name.endswith(needle_l)]
+    rhs = [p for p in maps_dir.iterdir() if p.name.endswith(needle_r)]
+    if not lhs or not rhs:
+        return None
+    if len(lhs) > 1 or len(rhs) > 1:
+        raise ValueError(
+            f"Tag '{tag}' at {resolution} matches multiple files in {maps_dir}: "
+            f"LH={[p.name for p in lhs]} RH={[p.name for p in rhs]}. "
+            "Tighten the tag in threemica_scope.json."
+        )
+    return lhs[0].resolve(), rhs[0].resolve()
+
+
+def list_sessions(bids_root: Path, scope: dict, subject: str) -> list[str]:
+    """Return the union of `ses-*` folders found under any scope derivative
+    for ``subject``."""
+    found: set[str] = set()
+    for deriv, spec in scope.items():
+        if deriv == "surface":
             continue
-        key = (m.group("label"), m.group("res"))
-        by_key.setdefault(key, {})[m.group("hemi")] = f.resolve()
+        sub_path = bids_root / "derivatives" / deriv / subject
+        if not sub_path.is_dir():
+            continue
+        for d in sub_path.iterdir():
+            if d.is_dir() and _SES_RE.match(d.name):
+                found.add(d.name)
+    return sorted(found)
+
+
+def list_subjects(bids_root: Path, scope: dict) -> list[str]:
+    """Return the union of `sub-*` folders across all scope derivatives."""
+    found: set[str] = set()
+    for deriv, spec in scope.items():
+        if deriv == "surface":
+            continue
+        deriv_path = bids_root / "derivatives" / deriv
+        if not deriv_path.is_dir():
+            continue
+        for d in deriv_path.iterdir():
+            if d.is_dir() and _SUB_RE.match(d.name):
+                found.add(d.name)
+    return sorted(found)
+
+
+def scan_subject(
+    bids_root: Path, scope: dict, subject: str, session: Optional[str]
+) -> list[FeatureMap]:
+    """Return every FeatureMap found for ``subject``/``session`` under scope.
+
+    Expects a normalized scope (tags are dicts with `tag/label/unit/cmap`).
+    """
     out: list[FeatureMap] = []
-    for (label, res), hemis in sorted(by_key.items()):
-        if "L" in hemis and "R" in hemis:
-            out.append(
-                FeatureMap(
-                    label=label,
-                    resolution=res,
-                    lh_path=hemis["L"],
-                    rh_path=hemis["R"],
-                )
-            )
+    for deriv, spec in scope.items():
+        if deriv == "surface":
+            continue
+        base = bids_root / "derivatives" / deriv / subject
+        if session:
+            base = base / session
+        if not base.is_dir():
+            continue
+        for subdir, tags in spec.items():
+            maps_dir = base / subdir
+            for entry in tags:
+                tag = entry["tag"]
+                for res in _resolutions_supported():
+                    paired = _find_paired(maps_dir, tag, res)
+                    if paired is None:
+                        continue
+                    out.append(FeatureMap(
+                        label=tag, resolution=res,
+                        derivative=deriv, subdir=subdir,
+                        lh_path=paired[0], rh_path=paired[1],
+                        display_label=entry.get("label", tag),
+                        unit=entry.get("unit", ""),
+                        cmap=entry.get("cmap", "pos-only"),
+                    ))
     return out
 
 
-def scan(subject_dir: str | Path) -> dict[Optional[str], list[FeatureMap]]:
-    """Scan one MicaPipe subject directory. Returns {session_or_None: [FeatureMap]}.
+def find_surface(
+    bids_root: Path, scope: dict, subject: str, session: Optional[str],
+    resolution: str, hemi: str,
+) -> Path:
+    """Locate the midthickness surface per the scope's `surface` block."""
+    if "surface" not in scope:
+        raise KeyError("threemica_scope.json missing 'surface' block")
+    spec = scope["surface"]
+    base = bids_root / "derivatives" / spec["derivative"] / subject
+    if session:
+        base = base / session
+    surf_dir = base / spec["subdir"]
+    label = spec.get("label", "midthickness")
+    H = hemi.upper()
+    pattern = f"*hemi-{H}*surf-{resolution}*label-{label}.surf.gii"
+    candidates = sorted(surf_dir.glob(pattern))
+    if not candidates:
+        raise FileNotFoundError(
+            f"No midthickness surface for {subject} {session or ''} {resolution} {H} "
+            f"under {surf_dir} (pattern {pattern})"
+        )
+    if len(candidates) > 1:
+        raise ValueError(
+            f"Multiple midthickness surfaces match in {surf_dir}: "
+            f"{[p.name for p in candidates]}"
+        )
+    return candidates[0]
 
-    Detects ses-* subdirectories. If absent, returns {None: [...]} for the
-    single-session case.
-    """
-    sub_dir = Path(subject_dir).resolve()
-    if not sub_dir.is_dir():
-        raise FileNotFoundError(f"Subject directory does not exist: {sub_dir}")
 
-    sessions = sorted(
-        d.name for d in sub_dir.iterdir() if d.is_dir() and _SES_RE.match(d.name)
-    )
-
-    if not sessions:
-        return {None: _scan_maps_dir(sub_dir / "maps")}
-    return {ses: _scan_maps_dir(sub_dir / ses / "maps") for ses in sessions}
-
-
-__all__ += ["FeatureMap", "scan"]
+__all__ += ["FeatureMap", "scan_subject", "list_subjects", "list_sessions", "find_surface"]
 
 
 # ---------------------------------------------------------------------------
 # build()
 # ---------------------------------------------------------------------------
 
-import json as _json
-
-from threemica._resources import viewer_template, viewer_js
-from threemica.builder import build_payload, guess_cb_label, guess_label
-
-
-_SUB_FROM_DIR_RE = re.compile(r"^sub-[^_/]+$")
-
-
 def _slug(label: str) -> str:
-    """Lowercase, dash-separated, alphanumerics only — for filename map slugs."""
     s = re.sub(r"[^a-zA-Z0-9]+", "-", label).strip("-").lower()
     return s or "map"
 
 
-def _subject_label(subject_dir: Path) -> str:
-    """Return 'sub-XXX' regardless of whether the caller passed sub-XXX or a path ending in it."""
-    name = subject_dir.name
-    if not _SUB_FROM_DIR_RE.match(name):
-        raise ValueError(f"subject_dir must end in 'sub-XXX', got: {subject_dir}")
-    return name
-
-
 def build(
-    subject_dir: str | Path,
+    bids_root: Path,
+    scope: dict,
+    subject: str,
     session: Optional[str],
     maps: list[FeatureMap],
     *,
     resolution: str = "fsLR-32k",
-    surface_type: str = "individual",
     out_dir: Optional[Path] = None,
     smooth_mm: Optional[int] = None,
 ) -> Path:
-    """Write one HTML report for one subject/session. Returns the output path."""
+    """Write one HTML report for one subject/session/resolution."""
     if not maps:
         raise ValueError("build() requires at least one FeatureMap")
-    sub_dir = Path(subject_dir).resolve()
-    sub_label = _subject_label(sub_dir)
-
-    # All maps must be at the requested resolution
     bad = [m for m in maps if m.resolution != resolution]
     if bad:
         raise ValueError(
             f"All maps must be at resolution={resolution}, "
-            f"but got {[(m.label, m.resolution) for m in bad]}"
+            f"got {[(m.label, m.resolution) for m in bad]}"
         )
 
-    # Choose surface
-    if surface_type == "template":
-        from threemica._resources import bundle_root
-        surf_root = bundle_root() / "surfaces"
-        # Some resolutions ship as `.surf.gii`, others as `.midthickness.surf.gii`
-        midL = surf_root / f"{resolution}.L.midthickness.surf.gii"
-        midR = surf_root / f"{resolution}.R.midthickness.surf.gii"
-        if not midL.exists():
-            midL = surf_root / f"{resolution}.L.surf.gii"
-            midR = surf_root / f"{resolution}.R.surf.gii"
-        surf_lh, surf_rh = midL, midR
-    else:  # individual
-        # Look under <subject>/[<session>/]surf/ for midthickness
-        surf_dir = (sub_dir / session / "surf") if session else (sub_dir / "surf")
-        candidates_L = sorted(surf_dir.glob(f"*hemi-L*{resolution}*midthickness*.surf.gii"))
-        candidates_R = sorted(surf_dir.glob(f"*hemi-R*{resolution}*midthickness*.surf.gii"))
-        if not candidates_L or not candidates_R:
-            raise FileNotFoundError(
-                f"No individual midthickness surface for {resolution} in {surf_dir}"
-            )
-        surf_lh = candidates_L[0]
-        surf_rh = candidates_R[0]
+    surf_lh = find_surface(bids_root, scope, subject, session, resolution, "L")
+    surf_rh = find_surface(bids_root, scope, subject, session, resolution, "R")
 
-    # Output path
     if out_dir is None:
-        out_dir = (sub_dir / session / "report") if session else (sub_dir / "report")
+        out_dir = bids_root / "derivatives" / "threemica" / subject
+        if session:
+            out_dir = out_dir / session
     out_dir = Path(out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    base = sub_label + (f"_{session}" if session else "")
+    base = subject + (f"_{session}" if session else "")
 
-    # Optional smoothing — wb_command -metric-smoothing into <out_dir>/_tmp/
+    # Optional smoothing
     map_lhs = [m.lh_path for m in maps]
     map_rhs = [m.rh_path for m in maps]
     tmp_dir: Optional[Path] = None
@@ -250,7 +265,7 @@ def build(
         mask_rh = write_cortex_mask_gii(resolution, "rh", n_rh, tmp_dir / f"cortex_mask_{resolution}_rh.shape.gii")
         smoothed_lhs, smoothed_rhs = [], []
         print(f"[threemica] Smoothing {len(maps)} map(s) at FWHM={smooth_mm}mm "
-              f"on {resolution} ({surface_type}) for {base} …", flush=True)
+              f"on {resolution} for {base} …", flush=True)
         for m in maps:
             out_lh = tmp_dir / f"{m.lh_path.stem}_smooth-{smooth_mm}mm.func.gii"
             out_rh = tmp_dir / f"{m.rh_path.stem}_smooth-{smooth_mm}mm.func.gii"
@@ -261,43 +276,38 @@ def build(
             smoothed_rhs.append(out_rh)
         map_lhs, map_rhs = smoothed_lhs, smoothed_rhs
 
-    # Sub-label shown under the top-left map title:
-    #   "sub-XXX · ses-YY · smooth Nmm" (or "smooth NA" when not smoothed)
-    sub_parts = [sub_label]
+    # Sub-label under top-left title
+    sub_parts = [subject]
     if session:
         sub_parts.append(session)
     sub_parts.append(f"smooth {smooth_mm}mm" if smooth_mm else "smooth NA")
     sub_label_str = " · ".join(sub_parts)
 
-    # Friendly label per map via MAP_SETTINGS (e.g. thickness → Cortical Thickness)
-    nice_labels = [guess_label(p.name) for p in map_lhs]
-    cb_labels = [guess_cb_label(p.name) for p in map_lhs]
+    nice_labels = [m.display_label or m.label for m in maps]
+    cb_labels = [m.unit for m in maps]
+    cmap_types = [m.cmap for m in maps]
 
     map_slug = "-".join(dict.fromkeys(_slug(m.label) for m in maps))
     smooth_tag = f"_smooth-{smooth_mm}mm" if smooth_mm else ""
     fname = (
-        f"{base}_space-{resolution}_desc-{surface_type}{smooth_tag}"
+        f"{base}_space-{resolution}_desc-individual{smooth_tag}"
         f"_report-{map_slug}.html"
     )
     out_html = out_dir / fname
 
-    # Build the payload via the ported builder. `labels=[]` lets build_payload
-    # fall back to guess_map_settings (MAP_SETTINGS lookup) per filename.
     payload = build_payload(
-        surf_lh=surf_lh,
-        surf_rh=surf_rh,
-        map_lhs=map_lhs,
-        map_rhs=map_rhs,
+        surf_lh=surf_lh, surf_rh=surf_rh,
+        map_lhs=map_lhs, map_rhs=map_rhs,
         resolution=resolution,
-        labels=[""] * len(maps),
+        labels=nice_labels,
         sub_labels=[sub_label_str] * len(maps),
         cb_labels=cb_labels,
-        colormaps=[""] * len(maps),
+        colormaps=cmap_types,
         clims=[None] * len(maps),
-        surface_type=surface_type,
+        surface_type="individual",
+        cmap_types=cmap_types,
     )
 
-    # Assemble HTML from the bundled viewer
     template = viewer_template().read_text(encoding="utf-8")
     js_body = viewer_js().read_text(encoding="utf-8")
     title = f"{nice_labels[0]} — threemica"
@@ -319,25 +329,11 @@ def build(
 __all__ += ["build"]
 
 
-def _select_maps_for(
-    available: List[FeatureMap], labels: List[str], resolution: str
-) -> List[FeatureMap]:
-    """Pick FeatureMaps whose label is in `labels` AND whose resolution matches."""
-    wanted = set(labels)
-    return [m for m in available if m.label in wanted and m.resolution == resolution]
-
-
-def _threemica_out_dir(
-    mp_root: Path, subject: str, session: Optional[str]
-) -> Path:
-    """Default output: <BIDS>/derivatives/threemica/sub-XX/[ses-YY]/."""
-    bids_root = mp_root.parent.parent  # micapipe → derivatives → BIDS
-    base = bids_root / "derivatives" / "threemica" / subject
-    return base / session if session else base
-
+# ---------------------------------------------------------------------------
+# run()
+# ---------------------------------------------------------------------------
 
 def _as_resolutions(value) -> Optional[List[str]]:
-    """Normalize resolution arg: None | str | list[str] → list[str] | None."""
     if value is None:
         return None
     if isinstance(value, str):
@@ -346,24 +342,23 @@ def _as_resolutions(value) -> Optional[List[str]]:
 
 
 def run(
-    micapipe_root: "str | Path | None" = None,
+    bids_root: "str | Path | None" = None,
     *,
     subjects: Optional[List[str]] = None,
     sessions: Optional[List[str]] = None,
     maps: Optional[List[str]] = None,
     resolution: "Optional[str | List[str]]" = None,
-    surface_type: str = "individual",
     out_dir: Optional[Path] = None,
     smooth_mm: Optional[int] = None,
     interactive: bool = True,
+    scope: Optional[Dict[str, Any]] = None,
 ) -> List[Path]:
-    """End-to-end flow: resolve root → scan → (pick) → build.
-
-    `resolution` accepts a single string or a list of strings; one HTML is
-    produced per (subject, session, resolution) with matching maps.
-    """
-    resolved = resolve_micapipe_root(micapipe_root)
-    mp_root = resolved.root
+    """End-to-end. ``bids_root`` defaults to cwd; resolved by walking up
+    to find a `derivatives/` child."""
+    resolved = resolve_bids_root(bids_root)
+    root = resolved.root
+    if scope is None:
+        scope = load_or_copy_scope(root)
     resolutions = _as_resolutions(resolution)
 
     if not interactive:
@@ -374,98 +369,70 @@ def run(
         if not resolutions:
             raise ValueError("resolution is required when interactive=False")
         return _run_scripted(
-            mp_root=mp_root,
-            subjects=subjects,
-            sessions=sessions,
-            map_labels=maps,
-            resolutions=resolutions,
-            surface_type=surface_type,
-            out_dir=out_dir,
-            smooth_mm=smooth_mm,
+            bids_root=root, scope=scope,
+            subjects=subjects, sessions=sessions,
+            map_labels=maps, resolutions=resolutions,
+            out_dir=out_dir, smooth_mm=smooth_mm,
         )
 
     return _run_interactive(
-        resolved=resolved,
-        subjects=subjects,
-        sessions=sessions,
-        map_labels=maps,
-        resolutions=resolutions,
-        surface_type=surface_type,
-        out_dir=out_dir,
-        smooth_mm=smooth_mm,
+        bids_root=root, scope=scope, resolved=resolved,
+        subjects=subjects, sessions=sessions,
+        map_labels=maps, resolutions=resolutions,
+        out_dir=out_dir, smooth_mm=smooth_mm,
     )
 
 
 def _run_scripted(
     *,
-    mp_root: Path,
-    subjects: List[str],
-    sessions: Optional[List[str]],
-    map_labels: List[str],
-    resolutions: List[str],
-    surface_type: str,
-    out_dir: Optional[Path],
-    smooth_mm: Optional[int] = None,
+    bids_root: Path, scope: dict,
+    subjects: List[str], sessions: Optional[List[str]],
+    map_labels: List[str], resolutions: List[str],
+    out_dir: Optional[Path], smooth_mm: Optional[int],
 ) -> List[Path]:
     outputs: List[Path] = []
+    wanted_labels = set(map_labels)
     for sub in subjects:
-        sub_dir = mp_root / sub
-        if not sub_dir.is_dir():
-            continue
-        per_session = scan(sub_dir)
-        for ses, available in per_session.items():
+        ses_list = list_sessions(bids_root, scope, sub) or [None]
+        for ses in ses_list:
             if sessions is not None and ses not in sessions:
                 continue
+            available = scan_subject(bids_root, scope, sub, ses)
             for res in resolutions:
-                picked = _select_maps_for(available, map_labels, res)
+                picked = [m for m in available
+                          if m.resolution == res and m.label in wanted_labels]
                 if not picked:
                     continue
-                this_out = out_dir if out_dir is not None else _threemica_out_dir(mp_root, sub, ses)
-                outputs.append(
-                    build(
-                        subject_dir=sub_dir,
-                        session=ses,
-                        maps=picked,
-                        resolution=res,
-                        surface_type=surface_type,
-                        out_dir=this_out,
-                        smooth_mm=smooth_mm,
-                    )
-                )
+                outputs.append(build(
+                    bids_root=bids_root, scope=scope,
+                    subject=sub, session=ses, maps=picked,
+                    resolution=res, out_dir=out_dir, smooth_mm=smooth_mm,
+                ))
     return outputs
 
 
 def _run_interactive(
     *,
-    resolved: ResolvedRoot,
-    subjects: Optional[List[str]],
-    sessions: Optional[List[str]],
-    map_labels: Optional[List[str]],
-    resolutions: Optional[List[str]],
-    surface_type: str,
-    out_dir: Optional[Path],
-    smooth_mm: Optional[int] = None,
+    bids_root: Path, scope: dict, resolved: ResolvedRoot,
+    subjects: Optional[List[str]], sessions: Optional[List[str]],
+    map_labels: Optional[List[str]], resolutions: Optional[List[str]],
+    out_dir: Optional[Path], smooth_mm: Optional[int],
 ) -> List[Path]:
-    mp_root = resolved.root
-
-    # 1. Subjects
-    all_subjects = sorted(
-        d.name for d in mp_root.iterdir() if d.is_dir() and _SUB_RE.match(d.name)
-    )
+    all_subjects = list_subjects(bids_root, scope)
     if subjects is None:
         default = [resolved.subject] if resolved.subject else None
         subjects = _wizard.pick_subjects(all_subjects, default=default)
     if not subjects:
         return []
 
-    # 2. Scan everything for the selected subjects
-    scans: dict[str, dict[Optional[str], List[FeatureMap]]] = {
-        sub: scan(mp_root / sub) for sub in subjects
-    }
+    # Scan all selected subjects so we can offer the union of sessions / labels / res
+    per_subject: Dict[str, Dict[Optional[str], list[FeatureMap]]] = {}
+    for sub in subjects:
+        ses_list = list_sessions(bids_root, scope, sub) or [None]
+        per_subject[sub] = {ses: scan_subject(bids_root, scope, sub, ses) for ses in ses_list}
 
-    # 3. Sessions — only prompt if at least one subject actually has named sessions
     session_candidates = sorted({
-        ses for per in scans.values() for ses in per.keys() if ses is not None
+        ses for per_ses in per_subject.values() for ses in per_ses.keys() if ses is not None
     })
     if sessions is None and session_candidates:
         default = [resolved.session] if resolved.session else None
@@ -473,46 +440,37 @@ def _run_interactive(
         if not sessions:
             return []
 
-    # Aggregate available (label, resolution) across selected subjects/sessions
-    all_pairs = set()
-    for per_ses in scans.values():
+    # Available (label, resolution) across what was scanned
+    all_pairs: set[tuple[str, str]] = set()
+    for per_ses in per_subject.values():
         for ses, fms in per_ses.items():
             if sessions is not None and ses not in sessions:
                 continue
             for fm in fms:
                 all_pairs.add((fm.label, fm.resolution))
-
     if not all_pairs:
         return []
 
-    # 4. Resolution (multi-select)
     if resolutions is None:
         res_candidates = sorted({r for _, r in all_pairs})
         resolutions = _wizard.pick_resolution(res_candidates)
     if not resolutions:
         return []
 
-    # 5. Maps (filtered to the chosen resolutions)
     label_candidates = sorted({lab for lab, r in all_pairs if r in resolutions})
     if map_labels is None:
         map_labels = _wizard.pick_maps(label_candidates)
     if not map_labels:
         return []
 
-    # 6. Smoothing FWHM
     if smooth_mm is None:
         smooth_mm = _wizard.pick_smooth()
 
-    # 7. Build per subject/session/resolution
     return _run_scripted(
-        mp_root=mp_root,
-        subjects=subjects,
-        sessions=sessions,
-        map_labels=map_labels,
-        resolutions=resolutions,
-        surface_type=surface_type,
-        out_dir=out_dir,
-        smooth_mm=smooth_mm,
+        bids_root=bids_root, scope=scope,
+        subjects=subjects, sessions=sessions,
+        map_labels=map_labels, resolutions=resolutions,
+        out_dir=out_dir, smooth_mm=smooth_mm,
     )
 
 

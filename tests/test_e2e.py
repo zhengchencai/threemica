@@ -1,42 +1,30 @@
 import subprocess
 import sys
 
+from threemica import run
 
-def test_e2e_real_subject_via_api(fake_micapipe):
-    """Run the whole pipeline via the Python API with interactive=False."""
-    from threemica import run
 
+def test_e2e_real_subject_via_api(fake_bids, fake_scope):
     outputs = run(
-        micapipe_root=fake_micapipe,
+        bids_root=fake_bids,
         subjects=["sub-001"],
         sessions=["ses-01"],
         maps=["thickness", "curv"],
         resolution="fsLR-5k",
-        surface_type="template",
         interactive=False,
+        scope=fake_scope,
     )
-    assert len(outputs) == 1  # one HTML, two maps inside
+    assert len(outputs) == 1
     html = outputs[0].read_text()
-    # Friendly labels from MAP_SETTINGS should appear in the embedded payload
     assert "Cortical Thickness" in html
     assert "Curvature" in html
-    # And the file slug retains the raw label names
-    assert "thickness-curv" in outputs[0].name or "thickness" in outputs[0].name
 
 
-def test_e2e_cli_against_fixture(fake_micapipe, tmp_path):
-    """Run the installed CLI via subprocess for one fully-scripted invocation.
-
-    We mock out questionary by setting a non-tty stdin to ensure the wizard
-    raises and the CLI surfaces a clean error — confirming the binary works
-    and the error path is wired.
-    """
+def test_e2e_cli_against_fixture(fake_bids):
     r = subprocess.run(
-        [sys.executable, "-m", "threemica.cli", str(fake_micapipe / "nope")],
-        capture_output=True,
-        text=True,
-        timeout=15,
+        [sys.executable, "-m", "threemica.cli", str(fake_bids / "nope")],
+        capture_output=True, text=True, timeout=15,
     )
     assert r.returncode != 0
-    assert "does not exist" in (r.stdout + r.stderr).lower() or \
-           "could not locate" in (r.stdout + r.stderr).lower()
+    msg = (r.stdout + r.stderr).lower()
+    assert "does not exist" in msg or "could not locate" in msg

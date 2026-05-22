@@ -164,6 +164,7 @@ def build_payload(
     colormaps: list,
     clims: list,
     surface_type: str,
+    cmap_types: list | None = None,
 ) -> dict:
     """Assemble the full JSON payload dict for the viewer.
     """
@@ -217,14 +218,18 @@ def build_payload(
         vmax = float(clims[i][1]) if clims[i] else float(np.nanmax(all_vals))
         
         inferred_label, inferred_cmap_type = guess_map_settings(map_lhs[i].name)
-        
+
         final_label = labels[i] if (labels and i < len(labels) and labels[i]) else inferred_label
-        
+        final_cmap = (
+            cmap_types[i] if (cmap_types and i < len(cmap_types) and cmap_types[i])
+            else inferred_cmap_type
+        )
+
         maps_data.append({
             "label":      final_label,
             "sub_label":  sub_labels[i] if (sub_labels and i < len(sub_labels)) else "",
             "cb_label":   cb_labels[i] if (cb_labels and i < len(cb_labels)) else "val",
-            "cmap_type":  inferred_cmap_type,
+            "cmap_type":  final_cmap,
             "vmin":       round(vmin, 4),
             "vmax":       round(vmax, 4),
             "lh": [round(float(v), 4) for v in map_lh_vals.tolist()],

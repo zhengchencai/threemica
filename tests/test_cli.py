@@ -1,8 +1,6 @@
 import subprocess
 from pathlib import Path
 
-PKG = Path(__file__).resolve().parents[1] / "src" / "threemica"
-
 
 def test_cli_help_runs():
     r = subprocess.run(
@@ -13,21 +11,18 @@ def test_cli_help_runs():
     assert "path" in r.stdout.lower()
 
 
-def test_cli_invokes_run(fake_micapipe, monkeypatch):
-    """When called from within a MicaPipe root, cli.main calls core.run()."""
+def test_cli_invokes_run(fake_bids, monkeypatch):
     from threemica import cli, core
 
     captured = {}
 
-    def fake_run(micapipe_root=None, **kwargs):
-        captured["micapipe_root"] = Path(micapipe_root) if micapipe_root else None
+    def fake_run(bids_root=None, **kwargs):
+        captured["bids_root"] = Path(bids_root) if bids_root else None
         captured["interactive"] = kwargs.get("interactive")
         return []
 
     monkeypatch.setattr(core, "run", fake_run)
     monkeypatch.setattr(cli, "_run_via_core", fake_run)
-
-    # Pass the fake_micapipe explicitly as the positional arg
-    cli.main([str(fake_micapipe)])
-    assert captured["micapipe_root"] == fake_micapipe
+    cli.main([str(fake_bids)])
+    assert captured["bids_root"] == fake_bids
     assert captured["interactive"] is True

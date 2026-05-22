@@ -24,8 +24,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "path",
         nargs="?",
         default=None,
-        help="MicaPipe derivatives folder, subject, or session "
-        "(default: current working directory).",
+        help="BIDS root, or any path inside it (default: current working directory).",
     )
     p.add_argument(
         "--subjects",
@@ -51,12 +50,6 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["fsLR-5k", "fsLR-32k"],
         default=None,
         help="Surface resolution(s); one HTML per resolution. Default: interactive picker.",
-    )
-    p.add_argument(
-        "--surface",
-        choices=["individual", "template"],
-        default="individual",
-        help="Surface to render maps on (default: individual).",
     )
     p.add_argument(
         "--smooth",
@@ -89,12 +82,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = _build_parser().parse_args(argv)
     try:
         outputs = _run_via_core(
-            micapipe_root=args.path,
+            bids_root=args.path,
             subjects=args.subjects,
             sessions=args.sessions,
             maps=args.maps,
             resolution=args.resolution,
-            surface_type=args.surface,
             out_dir=args.out,
             smooth_mm=(args.smooth if args.smooth and args.smooth > 0 else None),
             interactive=not args.batch,

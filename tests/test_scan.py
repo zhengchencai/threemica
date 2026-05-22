@@ -1,41 +1,49 @@
-from threemica.core import FeatureMap, scan
+from threemica.core import FeatureMap, scan_subject, list_subjects, list_sessions
 
 
-def test_scan_subject_with_session(fake_micapipe):
-    result = scan(fake_micapipe / "sub-001")
-    assert set(result.keys()) == {"ses-01"}
-    labels = {(m.label, m.resolution) for m in result["ses-01"]}
-    assert ("thickness", "fsLR-5k") in labels
-    assert ("thickness", "fsLR-32k") in labels
-    assert ("curv", "fsLR-5k") in labels
-    assert ("curv", "fsLR-32k") in labels
+def test_scan_subject_with_session(fake_bids, fake_scope):
+    fms = scan_subject(fake_bids, fake_scope, "sub-001", "ses-01")
+    pairs = {(m.label, m.resolution) for m in fms}
+    assert ("thickness", "fsLR-5k") in pairs
+    assert ("thickness", "fsLR-32k") in pairs
+    assert ("curv", "fsLR-5k") in pairs
+    assert ("curv", "fsLR-32k") in pairs
 
 
-def test_scan_drops_orphan_hemi(fake_micapipe):
-    result = scan(fake_micapipe / "sub-001")
-    labels = {m.label for m in result["ses-01"]}
-    assert "orphan" not in labels
+def test_scan_drops_unlisted_tags(fake_bids, fake_scope):
+    # 'orphan' file exists in maps/ but is not in the scope → skipped
+    fms = scan_subject(fake_bids, fake_scope, "sub-001", "ses-01")
+    assert all(m.label != "orphan" for m in fms)
 
 
-def test_scan_subject_without_session(fake_micapipe):
-    result = scan(fake_micapipe / "sub-002")
-    assert set(result.keys()) == {None}
-    assert len(result[None]) == 1
-    fm = result[None][0]
+def test_scan_subject_without_session(fake_bids, fake_scope):
+    fms = scan_subject(fake_bids, fake_scope, "sub-002", None)
+    assert len(fms) == 1
+    fm = fms[0]
     assert fm.label == "myelin"
     assert fm.resolution == "fsLR-32k"
     assert fm.lh_path.exists() and fm.rh_path.exists()
 
 
-def test_scan_empty_subject(fake_micapipe):
-    result = scan(fake_micapipe / "sub-003")
-    assert result == {None: []}
+def test_scan_empty_subject(fake_bids, fake_scope):
+    fms = scan_subject(fake_bids, fake_scope, "sub-003", None)
+    assert fms == []
 
 
-def test_featuremap_paths_are_resolved(fake_micapipe):
-    result = scan(fake_micapipe / "sub-001")
-    for fm in result["ses-01"]:
+def test_list_subjects_union(fake_bids, fake_scope):
+    assert list_subjects(fake_bids, fake_scope) == ["sub-001", "sub-002", "sub-003"]
+
+
+def test_list_sessions(fake_bids, fake_scope):
+    assert list_sessions(fake_bids, fake_scope, "sub-001") == ["ses-01"]
+    assert list_sessions(fake_bids, fake_scope, "sub-002") == []
+
+
+def test_featuremap_carries_derivative_and_subdir(fake_bids, fake_scope):
+    fms = scan_subject(fake_bids, fake_scope, "sub-001", "ses-01")
+    for fm in fms:
         assert isinstance(fm, FeatureMap)
+        assert fm.derivative == "micapipe_v0.2.0"
+        assert fm.subdir == "maps"
         assert "hemi-L" in fm.lh_path.name
         assert "hemi-R" in fm.rh_path.name
-        assert fm.lh_path.is_absolute()
