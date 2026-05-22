@@ -17,9 +17,11 @@ def test_e2e_real_subject_via_api(fake_micapipe):
     )
     assert len(outputs) == 1  # one HTML, two maps inside
     html = outputs[0].read_text()
-    # Both labels should appear in the embedded payload
-    assert "thickness" in html
-    assert "curv" in html
+    # Friendly labels from MAP_SETTINGS should appear in the embedded payload
+    assert "Cortical Thickness" in html
+    assert "Curvature" in html
+    # And the file slug retains the raw label names
+    assert "thickness-curv" in outputs[0].name or "thickness" in outputs[0].name
 
 
 def test_e2e_cli_against_fixture(fake_micapipe, tmp_path):

@@ -46,28 +46,33 @@ _SPHERE_STEM = {
 # Type can be "pos-only" (e.g. plasma) or "diverging" (e.g. coolwarm)
 MAP_SETTINGS = {
     # Structural
-    "thickness": {"label": "Cortical Thickness", "cmap_type": "pos-only"},
-    "curvature": {"label": "Curvature", "cmap_type": "diverging"},
-    "myelin":    {"label": "Myelin Mapping", "cmap_type": "pos-only"},
-    "sulc":      {"label": "Sulcal Depth", "cmap_type": "diverging"},
-    
+    "thickness": {"label": "Cortical Thickness", "cmap_type": "pos-only", "cb_label": "mm"},
+    "curvature": {"label": "Curvature", "cmap_type": "diverging", "cb_label": "1/mm"},
+    "curv":      {"label": "Curvature", "cmap_type": "diverging", "cb_label": "1/mm"},
+    "myelin":    {"label": "Myelin Mapping", "cmap_type": "pos-only", "cb_label": "T1w/T2w"},
+    "sulc":      {"label": "Sulcal Depth", "cmap_type": "diverging", "cb_label": "mm"},
+    "flair":     {"label": "FLAIR", "cmap_type": "pos-only", "cb_label": "AU"},
+    "t1map":     {"label": "T1 (qMRI)", "cmap_type": "pos-only", "cb_label": "ms"},
+    "adc":       {"label": "ADC", "cmap_type": "pos-only", "cb_label": "mm²/s"},
+    "fa":        {"label": "FA", "cmap_type": "pos-only", "cb_label": "FA"},
+
     # Functional
-    "bold":      {"label": "fMRI (BOLD)", "cmap_type": "diverging"},
-    "reho":      {"label": "Regional Homogeneity (ReHo)", "cmap_type": "pos-only"},
-    "alff":      {"label": "ALFF", "cmap_type": "pos-only"},
-    "fc":        {"label": "Functional Connectivity", "cmap_type": "diverging"},
-    
+    "bold":      {"label": "fMRI (BOLD)", "cmap_type": "diverging", "cb_label": "AU"},
+    "reho":      {"label": "Regional Homogeneity (ReHo)", "cmap_type": "pos-only", "cb_label": "ReHo"},
+    "alff":      {"label": "ALFF", "cmap_type": "pos-only", "cb_label": "ALFF"},
+    "fc":        {"label": "Functional Connectivity", "cmap_type": "diverging", "cb_label": "r"},
+
     # PET Tracers
-    "mk6240":    {"label": "Tau-PET", "cmap_type": "pos-only"},
-    "av1451":    {"label": "Tau-PET", "cmap_type": "pos-only"},
-    "flortaucipir": {"label": "Tau-PET", "cmap_type": "pos-only"},
-    "fdg":       {"label": "FDG-PET", "cmap_type": "pos-only"},
-    "pib":       {"label": "Amyloid-PET", "cmap_type": "pos-only"},
-    "ucbj":      {"label": "SV2A-PET", "cmap_type": "pos-only"},
-    
+    "mk6240":    {"label": "Tau-PET", "cmap_type": "pos-only", "cb_label": "SUVR"},
+    "av1451":    {"label": "Tau-PET", "cmap_type": "pos-only", "cb_label": "SUVR"},
+    "flortaucipir": {"label": "Tau-PET", "cmap_type": "pos-only", "cb_label": "SUVR"},
+    "fdg":       {"label": "FDG-PET", "cmap_type": "pos-only", "cb_label": "SUVR"},
+    "pib":       {"label": "Amyloid-PET", "cmap_type": "pos-only", "cb_label": "SUVR"},
+    "ucbj":      {"label": "SV2A-PET", "cmap_type": "pos-only", "cb_label": "SUVR"},
+
     # Statistical Maps
-    "zstat":     {"label": "Z-map", "cmap_type": "diverging"},
-    "tstat":     {"label": "T-map", "cmap_type": "diverging"},
+    "zstat":     {"label": "Z-map", "cmap_type": "diverging", "cb_label": "z"},
+    "tstat":     {"label": "T-map", "cmap_type": "diverging", "cb_label": "t"},
 }
 
 def guess_map_settings(filename: str) -> tuple[str, str]:
@@ -77,6 +82,20 @@ def guess_map_settings(filename: str) -> tuple[str, str]:
         if key in fn_lower:
             return settings["label"], settings["cmap_type"]
     return "Map", "pos-only"
+
+
+def guess_cb_label(filename: str) -> str:
+    """Look up the colorbar unit label for a map filename (defaults to 'Value')."""
+    fn_lower = filename.lower().replace("midthickness", "")
+    for key, settings in MAP_SETTINGS.items():
+        if key in fn_lower:
+            return settings.get("cb_label", "Value")
+    return "Value"
+
+
+def guess_label(filename: str) -> str:
+    """Look up the friendly map label (defaults to 'Map')."""
+    return guess_map_settings(filename)[0]
 
 
 def _b64(arr: np.ndarray, dtype) -> str:

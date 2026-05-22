@@ -160,7 +160,7 @@ __all__ += ["FeatureMap", "scan"]
 import json as _json
 
 from threemica._resources import viewer_template, viewer_js
-from threemica.builder import build_payload
+from threemica.builder import build_payload, guess_cb_label, guess_label
 
 
 _SUB_FROM_DIR_RE = re.compile(r"^sub-[^_/]+$")
@@ -249,14 +249,30 @@ def build(
         mask_lh = write_cortex_mask_gii(resolution, "lh", n_lh, tmp_dir / f"cortex_mask_{resolution}_lh.shape.gii")
         mask_rh = write_cortex_mask_gii(resolution, "rh", n_rh, tmp_dir / f"cortex_mask_{resolution}_rh.shape.gii")
         smoothed_lhs, smoothed_rhs = [], []
+        print(f"[threemica] Smoothing {len(maps)} map(s) at FWHM={smooth_mm}mm "
+              f"on {resolution} ({surface_type}) for {base} …", flush=True)
         for m in maps:
             out_lh = tmp_dir / f"{m.lh_path.stem}_smooth-{smooth_mm}mm.func.gii"
             out_rh = tmp_dir / f"{m.rh_path.stem}_smooth-{smooth_mm}mm.func.gii"
+            print(f"  · {m.label} L/R …", flush=True)
             smooth_map(surf_lh, m.lh_path, out_lh, smooth_mm, mask_lh)
             smooth_map(surf_rh, m.rh_path, out_rh, smooth_mm, mask_rh)
             smoothed_lhs.append(out_lh)
             smoothed_rhs.append(out_rh)
         map_lhs, map_rhs = smoothed_lhs, smoothed_rhs
+
+    # Sub-label shown under the top-left map title:
+    #   "sub-XXX · ses-YY · smooth Nmm"
+    sub_parts = [sub_label]
+    if session:
+        sub_parts.append(session)
+    if smooth_mm:
+        sub_parts.append(f"smooth {smooth_mm}mm")
+    sub_label_str = " · ".join(sub_parts)
+
+    # Friendly label per map via MAP_SETTINGS (e.g. thickness → Cortical Thickness)
+    nice_labels = [guess_label(p.name) for p in map_lhs]
+    cb_labels = [guess_cb_label(p.name) for p in map_lhs]
 
     map_slug = "-".join(dict.fromkeys(_slug(m.label) for m in maps))
     smooth_tag = f"_smooth-{smooth_mm}mm" if smooth_mm else ""
@@ -266,17 +282,18 @@ def build(
     )
     out_html = out_dir / fname
 
-    # Build the payload via the ported builder
+    # Build the payload via the ported builder. `labels=[]` lets build_payload
+    # fall back to guess_map_settings (MAP_SETTINGS lookup) per filename.
     payload = build_payload(
         surf_lh=surf_lh,
         surf_rh=surf_rh,
         map_lhs=map_lhs,
         map_rhs=map_rhs,
         resolution=resolution,
-        labels=[m.label for m in maps],
-        sub_labels=[base] * len(maps),
-        cb_labels=["Value"] * len(maps),
-        colormaps=["plasma"] * len(maps),
+        labels=[""] * len(maps),
+        sub_labels=[sub_label_str] * len(maps),
+        cb_labels=cb_labels,
+        colormaps=[""] * len(maps),
         clims=[None] * len(maps),
         surface_type=surface_type,
     )
@@ -284,7 +301,7 @@ def build(
     # Assemble HTML from the bundled viewer
     template = viewer_template().read_text(encoding="utf-8")
     js_body = viewer_js().read_text(encoding="utf-8")
-    title = f"{maps[0].label} — threemica"
+    title = f"{nice_labels[0]} — threemica"
     html = (
         template
         .replace("{{TITLE}}", title)
