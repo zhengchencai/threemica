@@ -100,11 +100,3 @@ Right-click a vertex to pin the query with Parcelquery + Parcelsynth tables.
 
 There's also a hidden demo: `Enter`, type `poweroverwhelming`, `Enter`.
 
-## Authors
-
-- zhengchencai
-- Claude (Anthropic) — co-developed via Claude Code
-
-## License
-
-GPL-3.0-or-later.
