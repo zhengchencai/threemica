@@ -236,13 +236,14 @@ def build_payload(
             vmin = float(clims[i][0])
             vmax = float(clims[i][1])
         elif final_cmap == "diverging":
-            # Symmetric around 0 at the 98th percentile of |x|.
-            m = float(np.percentile(np.abs(cortex_vals), 98)) if cortex_vals.size else 1.0
+            # Symmetric around 0 at max(|cortex values|).
+            m = max(abs(float(np.nanmin(cortex_vals))),
+                    abs(float(np.nanmax(cortex_vals)))) if cortex_vals.size else 1.0
             vmin, vmax = -m, m
-        else:  # pos-only — 2nd..98th percentile of cortex values (robust to outliers)
+        else:  # pos-only — full data range of cortex values
             if cortex_vals.size:
-                vmin = float(np.percentile(cortex_vals, 2))
-                vmax = float(np.percentile(cortex_vals, 98))
+                vmin = float(np.nanmin(cortex_vals))
+                vmax = float(np.nanmax(cortex_vals))
             else:
                 vmin, vmax = 0.0, 1.0
 
@@ -251,10 +252,10 @@ def build_payload(
             "sub_label":  sub_labels[i] if (sub_labels and i < len(sub_labels)) else "",
             "cb_label":   cb_labels[i] if (cb_labels and i < len(cb_labels)) else "val",
             "cmap_type":  final_cmap,
-            "vmin":       round(vmin, 4),
-            "vmax":       round(vmax, 4),
-            "lh": [round(float(v), 4) for v in map_lh_vals.tolist()],
-            "rh": [round(float(v), 4) for v in map_rh_vals.tolist()],
+            "vmin":       float(vmin),
+            "vmax":       float(vmax),
+            "lh": [float(v) for v in map_lh_vals.tolist()],
+            "rh": [float(v) for v in map_rh_vals.tolist()],
         })
     print(f"[report_builder] Loading Yale-696 parcellation ({resolution}) …")
     tag = _PARC_TAG[resolution]

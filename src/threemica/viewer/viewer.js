@@ -42,7 +42,17 @@ function drawColorbar() {
     ctx.fillStyle = `rgb(${r},${g},${b})`;
     ctx.fillRect(0, y, w, 1);
   }
-  const fmt = v => (Math.abs(v) < 10 ? v.toFixed(2) : v.toFixed(1));
+  // Format colorbar tick text: fixed-point when the magnitude is readable,
+  // scientific (e.g. "5.60e-4") when too small to render in fixed-point.
+  const fmt = v => {
+    const a = Math.abs(v);
+    if (a === 0) return '0';
+    if (a >= 100)   return v.toFixed(0);
+    if (a >= 10)    return v.toFixed(1);
+    if (a >= 0.1)   return v.toFixed(2);
+    if (a >= 0.001) return v.toFixed(4);
+    return v.toExponential(2);
+  };
   document.getElementById('cb-min').textContent = fmt(mapData.vmin);
   document.getElementById('cb-max').textContent = fmt(mapData.vmax);
   document.getElementById('colorbar-title').textContent = mapData.cb_label;
