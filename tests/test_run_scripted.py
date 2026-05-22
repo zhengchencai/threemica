@@ -12,7 +12,7 @@ def test_run_scripted_returns_html_paths(fake_bids, fake_scope):
         scope=fake_scope,
     )
     assert len(paths) == 1
-    assert paths[0].name == "sub-001_ses-01_space-fsLR-5k_desc-individual_report-thickness.html"
+    assert paths[0].name == "sub-001_ses-01_space-fsLR-5k_desc-individual_report-cortical-thickness.html"
     assert paths[0].exists()
 
 

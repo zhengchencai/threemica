@@ -289,7 +289,10 @@ def build(
     cmap_types = [m.cmap for m in maps]
     scales = [m.scale for m in maps]
 
-    map_slug = "-".join(dict.fromkeys(_slug(m.label) for m in maps))
+    # Use the scope's friendly label for the filename, not the raw file tag.
+    map_slug = "-".join(dict.fromkeys(
+        _slug(m.display_label or m.label) for m in maps
+    ))
     smooth_tag = f"_smooth-{smooth_mm}mm" if smooth_mm else ""
     fname = (
         f"{base}_space-{resolution}_desc-individual{smooth_tag}"
