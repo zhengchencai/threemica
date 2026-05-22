@@ -10,9 +10,6 @@ derivatives folder; it scans, lets the user pick subjects + feature maps, and
 writes one HTML per subject(/session) with the YBA-696 atlas hover overlay
 (Parcelquery / Parcelsynth top terms).
 
-Extracted from `/Users/django/Projects/SPACES_atlas/YBA_multimodal_data_micapipe/`
-plus EpMap-style smart scanner/wizard and proper packaging.
-
 ## Architecture
 
 ```
@@ -21,17 +18,17 @@ src/threemica/
 ├── core.py             # Public API: resolve_micapipe_root, scan, build, run, FeatureMap
 ├── cli.py              # `threemica` console script (thin wrapper over core.run)
 ├── _wizard.py          # questionary pickers (pick_subjects, pick_maps, pick_resolution)
-├── builder.py          # build_payload() — ported from SPACES, edits only for packaging
+├── builder.py          # build_payload() — report payload construction
 ├── resample.py         # Surface/metric resampling via wb_command (optional)
 ├── _resources.py       # importlib.resources accessors for bundle
 ├── viewer/
-│   ├── template.html   # Verbatim from SPACES (small CSS tweaks only)
-│   └── viewer.js       # Verbatim from SPACES — do not edit
+│   ├── template.html   # Viewer HTML template (small CSS tweaks only)
+│   └── viewer.js       # Viewer runtime — do not edit inline
 └── data/yba_micapipe/  # ~8 MB atlas bundle (surfaces, parcellations, medial wall,
                           parcelquery, parcelsynth) — shipped in the wheel
 ```
 
-The CLI is a 5-line wrapper. EpMap (or any third party) calls
+The CLI is a thin wrapper. Third-party callers use
 `threemica.run(...)` as a library without spawning a subprocess.
 
 ## Public API surface
@@ -82,17 +79,18 @@ never via `Path(__file__).parent`. Do not move the data dir.
 - No emojis in code or files unless explicitly requested.
 - Questionary prompts use `pointer=">"` and the style:
   `("answer", "fg:cyan"), ("pointer", ""), ("selected", "noreverse"), ("highlighted", "noreverse")`
-  — same as EpMap. Subject picker starts with **nothing checked**.
+  — keep this consistent across threemica prompts. Subject picker starts with
+  **nothing checked**.
 
 ## Don't touch
 
-- `viewer/viewer.js` — verbatim from SPACES. If upstream changes, re-copy
-  wholesale; don't edit inline.
-- `viewer/template.html` — also from SPACES. Minor CSS tweaks (e.g.
-  `--tooltip-scale`) are OK as long as the `{{TITLE}}`, `{{THEME_CLASS}}`,
-  `{{PAYLOAD_JSON}}`, `{{VIEWER_JS}}` placeholders stay intact.
+- `viewer/viewer.js` — keep stable. If the runtime needs a broad update,
+  replace it intentionally; don't edit inline.
+- `viewer/template.html` — minor CSS tweaks (e.g. `--tooltip-scale`) are OK as
+  long as the `{{TITLE}}`, `{{THEME_CLASS}}`, `{{PAYLOAD_JSON}}`,
+  `{{VIEWER_JS}}` placeholders stay intact.
 - `builder.py` — port-only. Bundle paths come from `_resources.py`;
-  computation logic is upstream SPACES code.
+  keep computation logic stable unless the change is specifically requested.
 
 ## Scope (v1)
 
