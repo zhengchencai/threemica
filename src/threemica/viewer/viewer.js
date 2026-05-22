@@ -864,13 +864,30 @@ init();
     })();
 
     // Main pass: visit each map exactly once with one inflate↔deflate cycle.
-    // Theme alternates per map (stays constant within a single map).
+    // Theme + rotation axis alternate per map (constant within a single map):
+    //   even i → horizontal spin (around z-up), odd i → vertical spin
+    //   (around y-axis) by reseating each camera's `up` vector before
+    //   OrbitControls' autoRotate kicks in.
     // Pin a sample query in the middle of the run (so user sees the popup).
     const pinAtMap = Math.floor(n / 2);
     for (let i = 0; i < n && alive(); i++) {
       if (i > 0) document.body.classList.toggle('theme-white');
       switchMap(i);
       morphT = 0; applyMorph();
+
+      // Re-orient cameras for this map's rotation axis
+      controlsL.autoRotate = controlsR.autoRotate = false;
+      cameraL.position.set(-CAM_DIST, 0, 0);
+      cameraR.position.set( CAM_DIST, 0, 0);
+      if (i % 2 === 0) {
+        cameraL.up.set(0, 0, 1); cameraR.up.set(0, 0, 1);    // horizontal
+      } else {
+        cameraL.up.set(0, 1, 0); cameraR.up.set(0, 1, 0);    // vertical
+      }
+      controlsL.target.set(0, 0, 0); controlsL.update();
+      controlsR.target.set(0, 0, 0); controlsR.update();
+      controlsL.autoRotate = controlsR.autoRotate = true;
+
       if (i === pinAtMap) setTimeout(() => { if (alive() && demoActive) pinSamplePoint(); }, HALF / 2);
       await animateMorph(0, 2, HALF);  if (!alive()) break;
       await animateMorph(2, 0, HALF);  if (!alive()) break;
