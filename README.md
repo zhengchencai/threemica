@@ -8,7 +8,7 @@ HTML viewer per subject — with the YBA-696 atlas overlay, Parcelquery and
 Parcelsynth top-term lookups, optional smoothing, and a hidden demo.
 
 <p align="center">
-  <video src="https://github.com/zhengchencai/threemica/raw/master/docs/demo.mp4"
+  <video src="https://github.com/user-attachments/assets/4c173394-041d-451b-9dcf-8dab67a4aa4a"
          controls autoplay muted loop playsinline width="720">
   </video>
 </p>
