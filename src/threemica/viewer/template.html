@@ -163,7 +163,7 @@
     pointer-events: none; white-space: nowrap;
   }
 
-  /* ── Cheat console ── */
+  /* ─── CHEAT DEMO CSS BEGIN — remove with viewer.js cheat block ─── */
   #cheat-console {
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
     z-index: 200; display: none; opacity: 0; transition: opacity 0.15s;
@@ -197,6 +197,7 @@
   }
   #cheat-flash.visible { opacity: 1; }
   body.theme-white #cheat-flash { background: rgba(255,255,255,0.95); }
+  /* ─── CHEAT DEMO CSS END ─── */
 </style>
 </head>
 <body class="{{THEME_CLASS}}">
@@ -227,12 +228,14 @@
   <span>H help · Scroll or ←→ inflate · ↑↓ zoom · [ ] switch map · C colormap · T theme · Q query · O opacity · M mesh · L lock · R reset</span>
 </div>
 
+<!-- ─── CHEAT DEMO HTML BEGIN — remove with viewer.js cheat block ─── -->
 <div id="cheat-console">
   <div class="ch-label">Enter Cheat Code</div>
   <div class="ch-input-row"><span class="ch-prompt">&gt;</span><input id="cheat-input" autocomplete="off" spellcheck="false" /></div>
   <div class="ch-hint">↵ submit · esc cancel</div>
 </div>
 <div id="cheat-flash"></div>
+<!-- ─── CHEAT DEMO HTML END ─── -->
 
 <div id="help-modal" onclick="this.classList.remove('visible')">
   <div class="help-content" onclick="event.stopPropagation()">

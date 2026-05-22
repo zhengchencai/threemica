@@ -327,8 +327,9 @@ let cheatOpen = false;
 function onKeyDown(e) {
   // Open cheat console on Enter when nothing else is consuming the key
   if (!cheatOpen && !demoActive && e.key === 'Enter'
-      && (!document.activeElement || document.activeElement.tagName !== 'INPUT')) {
-    openCheatConsole();
+      && (!document.activeElement || document.activeElement.tagName !== 'INPUT')
+      && typeof window._openCheatConsole === 'function') {
+    window._openCheatConsole();
     e.preventDefault();
     return;
   }
@@ -757,164 +758,183 @@ function animate() {
 init();
 
 
-// ─── Cheat console + demo ────────────────────────────────────────────────
-function openCheatConsole() {
-  const box = document.getElementById('cheat-console');
-  const inp = document.getElementById('cheat-input');
-  if (!box || !inp) return;
-  cheatOpen = true;
-  inp.value = '';
-  box.classList.add('visible');
-  setTimeout(() => inp.focus(), 0);
-}
-function closeCheatConsole() {
-  const box = document.getElementById('cheat-console');
-  if (box) box.classList.remove('visible');
-  cheatOpen = false;
-}
-function flashCheat(msg, ms) {
-  const el = document.getElementById('cheat-flash');
-  if (!el) return;
-  el.textContent = msg;
-  el.classList.add('visible');
-  setTimeout(() => el.classList.remove('visible'), ms || 1500);
-}
-
-const CHEATS = {
-  'whosyourdaddy': runDemo,
-};
-
-document.addEventListener('keydown', (e) => {
-  if (!cheatOpen) return;
-  if (e.key === 'Escape') { closeCheatConsole(); e.preventDefault(); return; }
-  if (e.key === 'Enter') {
+// ═══════════════════════════════════════════════════════════════════════════
+// CHEAT DEMO BLOCK — easter egg. To remove the demo entirely, delete:
+//   1. this whole block (down to "CHEAT DEMO BLOCK END")
+//   2. the `demoActive`/`cheatOpen` declarations above onKeyDown
+//   3. the early-return at the top of onKeyDown that gates regular shortcuts
+//   4. the #cheat-console and #cheat-flash elements + CSS in template.html
+// Nothing else in the viewer depends on this code.
+// ═══════════════════════════════════════════════════════════════════════════
+(function installCheatDemo() {
+  function openCheatConsole() {
+    const box = document.getElementById('cheat-console');
     const inp = document.getElementById('cheat-input');
-    const code = (inp ? inp.value : '').trim().toLowerCase();
-    closeCheatConsole();
-    const fn = CHEATS[code];
-    if (fn) { flashCheat('Cheat enabled.', 1200); setTimeout(fn, 200); }
-    else if (code) { flashCheat('Cheat unrecognized.', 1200); }
-    e.preventDefault();
+    if (!box || !inp) return;
+    cheatOpen = true;
+    inp.value = '';
+    box.classList.add('visible');
+    setTimeout(() => inp.focus(), 0);
   }
-});
+  function closeCheatConsole() {
+    const box = document.getElementById('cheat-console');
+    if (box) box.classList.remove('visible');
+    cheatOpen = false;
+  }
+  function flashCheat(msg, ms) {
+    const el = document.getElementById('cheat-flash');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('visible');
+    setTimeout(() => el.classList.remove('visible'), ms || 1500);
+  }
+  // Exposed so onKeyDown's Enter handler can open the console
+  window._openCheatConsole = openCheatConsole;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const CHEATS = { 'whosyourdaddy': runDemo };
 
-async function animateMorph(from, to, ms) {
-  const start = performance.now();
-  return new Promise((resolve) => {
-    function step(now) {
-      const t = Math.min(1, (now - start) / ms);
-      morphT = from + (to - from) * t;
-      applyMorph();
-      if (t < 1 && !demoCancelled) requestAnimationFrame(step);
-      else resolve();
+  document.addEventListener('keydown', (e) => {
+    if (!cheatOpen) return;
+    if (e.key === 'Escape') { closeCheatConsole(); e.preventDefault(); return; }
+    if (e.key === 'Enter') {
+      const inp = document.getElementById('cheat-input');
+      const code = (inp ? inp.value : '').trim().toLowerCase();
+      closeCheatConsole();
+      const fn = CHEATS[code];
+      if (fn) { flashCheat('Cheat enabled.', 1200); setTimeout(fn, 200); }
+      else if (code) { flashCheat('Cheat unrecognized.', 1200); }
+      e.preventDefault();
     }
-    requestAnimationFrame(step);
   });
-}
 
-let demoCancelled = false;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let demoCancelled = false;
 
-async function runDemo() {
-  if (demoActive) return;
-  demoActive = true;
-  demoCancelled = false;
-
-  const onEsc = (e) => { if (e.key === 'Escape') demoCancelled = true; };
-  document.addEventListener('keydown', onEsc);
-
-  const saved = {
-    map: activeMapIdx,
-    theme: document.body.classList.contains('theme-white'),
-    cmapPos: currentCmapPos,
-    cmapDiv: currentCmapDiv,
-    opacity: cortexOpacity,
-    wireframe: wireframeVisible,
-    hover: hoverEnabled,
-    morphT,
-  };
-
-  // Demo plays at ~6s total (2x the previous 12s).
-  const TOTAL_MS = 6000;
-  const start = performance.now();
-  const elapsed = () => performance.now() - start;
-  const alive = () => !demoCancelled && elapsed() < TOTAL_MS;
-
-  switchMap(0);
-  morphT = 0; applyMorph();
-  hoverEnabled = true;
-
-  // Constant autorotate the whole demo (~2 revolutions, then snaps back at end)
-  controlsL.autoRotate = controlsR.autoRotate = true;
-  controlsL.autoRotateSpeed = controlsR.autoRotateSpeed = 30;
-
-  // Concurrent timelines:
-  //   - inflate 0→2 and back, looped
-  //   - map switch every ~1.2s
-  //   - colormap cycle every ~0.7s
-  //   - theme flip with ~20% chance per second
-  //   - mid-demo flash hinting at hover/right-click query
-  const inflationLoop = (async () => {
-    while (alive()) {
-      await animateMorph(0, 2, 900);  if (!alive()) break;
-      await animateMorph(2, 0, 900);
-    }
-  })();
-  const mapLoop = (async () => {
-    const n = (PAYLOAD && PAYLOAD.maps) ? PAYLOAD.maps.length : 1;
-    let i = 0;
-    while (alive()) {
-      await sleep(1200);  if (!alive()) break;
-      i = (i + 1) % n; switchMap(i);
-    }
-  })();
-  const cmapLoop = (async () => {
-    while (alive()) {
-      await sleep(700);  if (!alive()) break;
-      cycleColormap();
-    }
-  })();
-  const themeLoop = (async () => {
-    while (alive()) {
-      await sleep(1000);  if (!alive()) break;
-      if (Math.random() < 0.20) document.body.classList.toggle('theme-white');
-    }
-  })();
-  const queryHint = (async () => {
-    await sleep(2200);  if (!alive()) return;
-    flashCheat('Hover: query · Right-click: pin', 1400);
-  })();
-
-  await Promise.all([inflationLoop, mapLoop, cmapLoop, themeLoop, queryHint]);
-
-  // Restore initial state
-  controlsL.autoRotate = controlsR.autoRotate = false;
-  cameraL.position.set(-CAM_DIST, 0, 0); cameraL.up.set(0, 0, 1);
-  controlsL.target.set(0, 0, 0); controlsL.update();
-  cameraR.position.set( CAM_DIST, 0, 0); cameraR.up.set(0, 0, 1);
-  controlsR.target.set(0, 0, 0); controlsR.update();
-
-  switchMap(saved.map);
-  if (document.body.classList.contains('theme-white') !== saved.theme) {
-    document.body.classList.toggle('theme-white');
+  async function animateMorph(from, to, ms) {
+    const start = performance.now();
+    return new Promise((resolve) => {
+      function step(now) {
+        const t = Math.min(1, (now - start) / ms);
+        morphT = from + (to - from) * t;
+        applyMorph();
+        if (t < 1 && !demoCancelled) requestAnimationFrame(step);
+        else resolve();
+      }
+      requestAnimationFrame(step);
+    });
   }
-  currentCmapPos = saved.cmapPos;
-  currentCmapDiv = saved.cmapDiv;
-  currentCmap = (PAYLOAD.maps[activeMapIdx].cmap_type === 'diverging')
-    ? currentCmapDiv : currentCmapPos;
-  drawColorbar();
-  if (meshL) recolorMesh('lh', meshL);
-  if (meshR) recolorMesh('rh', meshR);
-  cortexOpacity = saved.opacity; applyOpacity();
-  wireframeVisible = saved.wireframe;
-  if (wireL) wireL.visible = wireframeVisible;
-  if (wireR) wireR.visible = wireframeVisible;
-  hoverEnabled = saved.hover;
-  if (!hoverEnabled) unpinTooltip();
-  morphT = saved.morphT; applyMorph();
 
-  document.removeEventListener('keydown', onEsc);
-  demoActive = false;
-  flashCheat(demoCancelled ? 'Demo cancelled.' : 'Demo complete.', 900);
-}
+  // Dispatch a synthetic right-click on the centre of the left container.
+  // The existing onContextMenu handler does the raycast + pin.
+  function pinSamplePoint() {
+    const c = document.getElementById('container-left');
+    if (!c) return;
+    const r = c.getBoundingClientRect();
+    const evt = new MouseEvent('contextmenu', {
+      clientX: r.left + r.width * 0.5,
+      clientY: r.top  + r.height * 0.5,
+      button:  2, buttons: 2, bubbles: true, cancelable: true,
+    });
+    window.dispatchEvent(evt);
+  }
+
+  async function runDemo() {
+    if (demoActive) return;
+    demoActive = true;
+    demoCancelled = false;
+
+    const onEsc = (e) => { if (e.key === 'Escape') demoCancelled = true; };
+    document.addEventListener('keydown', onEsc);
+
+    const saved = {
+      map: activeMapIdx,
+      theme: document.body.classList.contains('theme-white'),
+      cmapPos: currentCmapPos,
+      cmapDiv: currentCmapDiv,
+      opacity: cortexOpacity,
+      wireframe: wireframeVisible,
+      hover: hoverEnabled,
+      morphT,
+    };
+
+    const TOTAL_MS = 6000;
+    const start = performance.now();
+    const elapsed = () => performance.now() - start;
+    const alive = () => !demoCancelled && elapsed() < TOTAL_MS;
+
+    switchMap(0);
+    morphT = 0; applyMorph();
+    hoverEnabled = true;
+
+    // Constant autorotate (~2 revolutions over the demo)
+    controlsL.autoRotate = controlsR.autoRotate = true;
+    controlsL.autoRotateSpeed = controlsR.autoRotateSpeed = 30;
+
+    const inflationLoop = (async () => {
+      while (alive()) {
+        await animateMorph(0, 2, 900);  if (!alive()) break;
+        await animateMorph(2, 0, 900);
+      }
+    })();
+    const mapLoop = (async () => {
+      const n = (PAYLOAD && PAYLOAD.maps) ? PAYLOAD.maps.length : 1;
+      let i = 0;
+      while (alive()) {
+        await sleep(1200);  if (!alive()) break;
+        i = (i + 1) % n; switchMap(i);
+      }
+    })();
+    const cmapLoop = (async () => {
+      while (alive()) {
+        await sleep(700);  if (!alive()) break;
+        cycleColormap();
+      }
+    })();
+    const themeLoop = (async () => {
+      while (alive()) {
+        await sleep(1000);  if (!alive()) break;
+        if (Math.random() < 0.20) document.body.classList.toggle('theme-white');
+      }
+    })();
+    // Demo a pinned query: synthetic right-click ~2.2s in, unpin shortly after.
+    const queryLoop = (async () => {
+      await sleep(2200);  if (!alive()) return;
+      pinSamplePoint();
+      await sleep(1400);
+      unpinTooltip();
+    })();
+
+    await Promise.all([inflationLoop, mapLoop, cmapLoop, themeLoop, queryLoop]);
+
+    // ── Restore default view ─────────────────────────────────────────────
+    controlsL.autoRotate = controlsR.autoRotate = false;
+    cameraL.position.set(-CAM_DIST, 0, 0); cameraL.up.set(0, 0, 1);
+    controlsL.target.set(0, 0, 0); controlsL.update();
+    cameraR.position.set( CAM_DIST, 0, 0); cameraR.up.set(0, 0, 1);
+    controlsR.target.set(0, 0, 0); controlsR.update();
+    unpinTooltip();
+
+    switchMap(saved.map);
+    if (document.body.classList.contains('theme-white') !== saved.theme) {
+      document.body.classList.toggle('theme-white');
+    }
+    currentCmapPos = saved.cmapPos;
+    currentCmapDiv = saved.cmapDiv;
+    currentCmap = (PAYLOAD.maps[activeMapIdx].cmap_type === 'diverging')
+      ? currentCmapDiv : currentCmapPos;
+    drawColorbar();
+    if (meshL) recolorMesh('lh', meshL);
+    if (meshR) recolorMesh('rh', meshR);
+    cortexOpacity = saved.opacity; applyOpacity();
+    wireframeVisible = saved.wireframe;
+    if (wireL) wireL.visible = wireframeVisible;
+    if (wireR) wireR.visible = wireframeVisible;
+    hoverEnabled = saved.hover;
+    morphT = saved.morphT; applyMorph();
+
+    document.removeEventListener('keydown', onEsc);
+    demoActive = false;
+    flashCheat(demoCancelled ? 'Demo cancelled.' : 'Demo complete.', 900);
+  }
+})();
+// ═══════════════════════════════════ CHEAT DEMO BLOCK END ═══════════════════
