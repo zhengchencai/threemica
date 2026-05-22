@@ -205,6 +205,13 @@ def build_payload(
     ).agg_data("pointset").astype(np.float32)
 
     print(f"[report_builder] Loading maps …")
+    # Cortex mask (True = cortex, False = medial wall). Used to compute robust
+    # vmin/vmax that aren't dragged by medial-wall zeros.
+    mw_lh = np.load(_MW / f"medial_wall_{resolution}_lh.npy")
+    mw_rh = np.load(_MW / f"medial_wall_{resolution}_rh.npy")
+    cortex_lh = np.ones(n_lh, dtype=bool); cortex_lh[mw_lh] = False
+    cortex_rh = np.ones(n_rh, dtype=bool); cortex_rh[mw_rh] = False
+
     maps_data = []
     for i in range(len(map_lhs)):
         map_lh_vals = nib.load(map_lhs[i]).darrays[0].data.astype(np.float32)
@@ -213,7 +220,9 @@ def build_payload(
         if len(map_lh_vals) != n_lh or len(map_rh_vals) != n_rh:
             raise RuntimeError(f"Map vertex count mismatch in map {i}")
 
-        all_vals = np.concatenate([map_lh_vals, map_rh_vals])
+        # Cortex-only values for robust range; ignore NaN + medial wall.
+        cortex_vals = np.concatenate([map_lh_vals[cortex_lh], map_rh_vals[cortex_rh]])
+        cortex_vals = cortex_vals[np.isfinite(cortex_vals)]
 
         inferred_label, inferred_cmap_type = guess_map_settings(map_lhs[i].name)
 
@@ -227,12 +236,15 @@ def build_payload(
             vmin = float(clims[i][0])
             vmax = float(clims[i][1])
         elif final_cmap == "diverging":
-            m = max(abs(float(np.nanmin(all_vals))),
-                    abs(float(np.nanmax(all_vals))))
+            # Symmetric around 0 at the 98th percentile of |x|.
+            m = float(np.percentile(np.abs(cortex_vals), 98)) if cortex_vals.size else 1.0
             vmin, vmax = -m, m
-        else:  # pos-only — data min..max (NOT 0..max)
-            vmin = float(np.nanmin(all_vals))
-            vmax = float(np.nanmax(all_vals))
+        else:  # pos-only — 2nd..98th percentile of cortex values (robust to outliers)
+            if cortex_vals.size:
+                vmin = float(np.percentile(cortex_vals, 2))
+                vmax = float(np.percentile(cortex_vals, 98))
+            else:
+                vmin, vmax = 0.0, 1.0
 
         maps_data.append({
             "label":      final_label,
