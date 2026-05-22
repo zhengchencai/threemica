@@ -80,7 +80,6 @@ never via `Path(__file__).parent`. Do not move the data dir.
 ## Style rules
 
 - No emojis in code or files unless explicitly requested.
-- No `Co-Authored-By` lines in commits.
 - Questionary prompts use `pointer=">"` and the style:
   `("answer", "fg:cyan"), ("pointer", ""), ("selected", "noreverse"), ("highlighted", "noreverse")`
   — same as EpMap. Subject picker starts with **nothing checked**.

@@ -11,12 +11,6 @@ Parcelsynth top-term lookups, optional smoothing, and a hidden demo.
   <img src="docs/demo1.gif" alt="threemica demo" width="100%">
 </p>
 
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/4c173394-041d-451b-9dcf-8dab67a4aa4a"
-         autoplay muted loop playsinline width="100%">
-  </video>
-</p>
-
 ## Install
 
 Always in a fresh env so threemica's deps don't touch existing ones:
@@ -103,4 +97,3 @@ threemica [PATH] [--subjects sub-001 …] [--sessions ses-01 …]
 Right-click a vertex to pin the query with Parcelquery + Parcelsynth tables.
 
 There's also a hidden demo: `Enter`, type `poweroverwhelming`, `Enter`.
-
