@@ -19,5 +19,14 @@
       {"tag": "midthickness_pvc-IY_ref-cerebellarGM_smooth-10mm_trc-MK6240_pet",
        "label": "Tau-PET (MK6240)", "unit": "SUVR", "cmap": "pos-only"}
     ]
+  },
+
+  "electroMICA": {
+    "maps": [
+      {"tag": "ChannelMap",                     "label": "ChannelMap",   "unit": "",            "cmap": "auto"},
+      {"tag": "stage-N2_InterictalEventsRates", "label": "IEDRate(N2)",  "unit": "events/min",  "cmap": "pos-only"},
+      {"tag": "stage-N3_InterictalEventsRates", "label": "IEDRate(N3)",  "unit": "events/min",  "cmap": "pos-only"},
+      {"tag": "stage-W_InterictalEventsRates",  "label": "IEDRate(W)",   "unit": "events/min",  "cmap": "pos-only"}
+    ]
   }
 }

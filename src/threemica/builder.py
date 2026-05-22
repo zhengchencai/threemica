@@ -237,6 +237,10 @@ def build_payload(
             cmap_types[i] if (cmap_types and i < len(cmap_types) and cmap_types[i])
             else inferred_cmap_type
         )
+        # cmap "auto" → pick from data: any negative values → diverging, else pos-only
+        if final_cmap == "auto":
+            final_cmap = "diverging" if (cortex_vals.size
+                and float(np.nanmin(cortex_vals)) < 0) else "pos-only"
 
         if clims[i]:
             vmin = float(clims[i][0])

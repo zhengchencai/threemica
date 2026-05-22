@@ -87,18 +87,32 @@ def _resolutions_supported() -> tuple:
     return ("fsLR-5k", "fsLR-32k")
 
 
+def _file_matches(name: str, tag: str, hemi: str, resolution: str) -> bool:
+    """Match either:
+      A) micapipe-style ``_hemi-{H}_surf-{res}_label-{tag}.(func.)?gii``
+      B) electroMICA-style ``_{tag}_hemi-{H}_..._surf-{res}_....gii``
+    Both ``.gii`` and ``.func.gii`` are accepted as the file extension.
+    """
+    if not (name.endswith(".gii") or name.endswith(".func.gii")):
+        return False
+    if (f"_hemi-{hemi}_surf-{resolution}_label-{tag}.func.gii" in name
+            or f"_hemi-{hemi}_surf-{resolution}_label-{tag}.gii" in name):
+        return True
+    if (f"_{tag}_hemi-{hemi}_" in name
+            and f"_surf-{resolution}_" in name):
+        return True
+    return False
+
+
 def _find_paired(
     maps_dir: Path, tag: str, resolution: str
 ) -> Optional[tuple[Path, Path]]:
-    """Find LH+RH paired files in ``maps_dir`` whose `_label-` value equals ``tag``
-    exactly, at ``resolution``. Raises if more than one match per hemisphere.
-    """
+    """Find LH+RH paired files in ``maps_dir`` for ``tag`` at ``resolution``.
+    Raises if more than one match per hemisphere."""
     if not maps_dir.is_dir():
         return None
-    needle_l = f"_hemi-L_surf-{resolution}_label-{tag}.func.gii"
-    needle_r = f"_hemi-R_surf-{resolution}_label-{tag}.func.gii"
-    lhs = [p for p in maps_dir.iterdir() if p.name.endswith(needle_l)]
-    rhs = [p for p in maps_dir.iterdir() if p.name.endswith(needle_r)]
+    lhs = [p for p in maps_dir.iterdir() if _file_matches(p.name, tag, "L", resolution)]
+    rhs = [p for p in maps_dir.iterdir() if _file_matches(p.name, tag, "R", resolution)]
     if not lhs or not rhs:
         return None
     if len(lhs) > 1 or len(rhs) > 1:
