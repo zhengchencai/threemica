@@ -801,7 +801,7 @@ init();
       const code = (inp ? inp.value : '').trim().toLowerCase();
       closeCheatConsole();
       const fn = CHEATS[code];
-      if (fn) { flashCheat('Cheat enabled.', 1200); setTimeout(fn, 200); }
+      if (fn) { setTimeout(fn, 0); }
       else if (code) { flashCheat('Cheat unrecognized.', 1200); }
       e.preventDefault();
     }
@@ -824,16 +824,18 @@ init();
     });
   }
 
-  // Dispatch a synthetic right-click on the centre of the left container.
-  // Must dispatch on the element (not window) so the existing onContextMenu
-  // handler — which calls e.target.closest('#tooltip') — gets an Element.
-  function pinSamplePoint() {
+  // Dispatch a synthetic right-click at a normalized (fx, fy) inside the left
+  // container. Must dispatch on the element (not window) so onContextMenu's
+  // e.target.closest('#tooltip') gets a real Element.
+  function pinSamplePoint(fx, fy) {
+    if (fx === undefined) fx = 0.5;
+    if (fy === undefined) fy = 0.5;
     const c = document.getElementById('container-left');
     if (!c) return;
     const r = c.getBoundingClientRect();
     const evt = new MouseEvent('contextmenu', {
-      clientX: r.left + r.width * 0.5,
-      clientY: r.top  + r.height * 0.5,
+      clientX: r.left + r.width * fx,
+      clientY: r.top  + r.height * fy,
       button:  2, buttons: 2, bubbles: true, cancelable: true,
     });
     c.dispatchEvent(evt);
@@ -869,8 +871,6 @@ init();
     //   even i → horizontal spin (around z-up), odd i → vertical spin
     //   (around y-axis) by reseating each camera's `up` vector before
     //   OrbitControls' autoRotate kicks in.
-    // Pin a sample query in the middle of the run (so user sees the popup).
-    const pinAtMap = Math.floor(n / 2);
     for (let i = 0; i < n && alive(); i++) {
       if (i > 0) document.body.classList.toggle('theme-white');
       switchMap(i);
@@ -889,10 +889,8 @@ init();
       controlsR.target.set(0, 0, 0); controlsR.update();
       controlsL.autoRotate = controlsR.autoRotate = true;
 
-      if (i === pinAtMap) setTimeout(() => { if (alive() && demoActive) pinSamplePoint(); }, HALF / 2);
       await animateMorph(0, 2, HALF);  if (!alive()) break;
       await animateMorph(2, 0, HALF);  if (!alive()) break;
-      if (i === pinAtMap) unpinTooltip();
     }
 
     demoActive = false;             // stop background loops
@@ -922,6 +920,22 @@ init();
     drawColorbar();
     if (meshL) recolorMesh('lh', meshL);
     if (meshR) recolorMesh('rh', meshR);
+
+    // ── Epilogue: 3 sample hover-query pins, 2s each ─────────────────────
+    if (alive()) {
+      hoverEnabled = true;
+      await sleep(500);
+      const positions = [[0.35, 0.45], [0.55, 0.40], [0.55, 0.65]];
+      for (const [fx, fy] of positions) {
+        if (!alive()) break;
+        pinSamplePoint(fx, fy);
+        await sleep(2000);
+        unpinTooltip();
+        await sleep(150);
+      }
+      hoverEnabled = false;
+      unpinTooltip();
+    }
 
     document.removeEventListener('keydown', onEsc);
   }
