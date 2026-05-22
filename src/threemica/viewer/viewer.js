@@ -791,7 +791,7 @@ init();
   // Exposed so onKeyDown's Enter handler can open the console
   window._openCheatConsole = openCheatConsole;
 
-  const CHEATS = { 'whosyourdaddy': runDemo };
+  const CHEATS = { 'poweroverwhelming': runDemo };
 
   document.addEventListener('keydown', (e) => {
     if (!cheatOpen) return;
