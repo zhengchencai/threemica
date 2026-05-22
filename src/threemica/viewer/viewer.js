@@ -60,7 +60,9 @@ function drawColorbar() {
   const [tmin, tmax] = fmtPair(mapData.vmin, mapData.vmax);
   document.getElementById('cb-min').textContent = tmin;
   document.getElementById('cb-max').textContent = tmax;
-  document.getElementById('colorbar-title').textContent = mapData.cb_label;
+  // Use a non-breaking space when the unit is empty so the title element
+  // still occupies a line, keeping the colorbar at a consistent height/position.
+  document.getElementById('colorbar-title').textContent = mapData.cb_label || ' ';
 }
 
 // ── State ────────────────────────────────────────────────────────────────
