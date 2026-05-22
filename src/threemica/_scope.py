@@ -26,8 +26,8 @@ def _example_path() -> Path:
     return bundle_root().parent / "threemica_scope.example.json"
 
 
-def scope_path(bids_root: Path) -> Path:
-    return bids_root / "derivatives" / _FILENAME
+def scope_path(bids_root) -> Path:
+    return Path(bids_root) / "derivatives" / _FILENAME
 
 
 def _normalize_tag(entry) -> Dict[str, Any]:
@@ -68,7 +68,7 @@ def normalize_scope(scope: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def load_or_copy_scope(bids_root: Path, console: Console | None = None) -> Dict[str, Any]:
+def load_or_copy_scope(bids_root, console: Console | None = None) -> Dict[str, Any]:
     """Return the normalized scope dict for ``bids_root``."""
     console = console or Console()
     dst = scope_path(bids_root)
