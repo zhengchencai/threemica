@@ -81,6 +81,7 @@ class FeatureMap:
     unit: str = ""           # colorbar unit (e.g. "mm")
     cmap: str = "pos-only"   # "pos-only" or "diverging"
     scale: float = 1.0       # multiply raw data by this before display (e.g. 0.001 for ms→s)
+    smooth_method: str = "kernel"  # "kernel" or "dilate"
 
 
 def _resolutions_supported() -> tuple:
@@ -187,6 +188,7 @@ def scan_subject(
                         unit=entry.get("unit", ""),
                         cmap=entry.get("cmap", "pos-only"),
                         scale=float(entry.get("scale", 1.0)),
+                        smooth_method=entry.get("smooth_method", "kernel"),
                     ))
     return out
 
@@ -271,7 +273,12 @@ def build(
     tmp_dir: Optional[Path] = None
     if smooth_mm:
         import nibabel as nib
-        from threemica._smoothing import smooth_map, write_cortex_mask_gii
+        from threemica._smoothing import smooth_map, dilate_map, write_cortex_mask_gii
+        # Approximate average mesh edge length per resolution (mm).
+        _EDGE_MM = {"fsLR-32k": 3.0, "fsLR-5k": 7.0}
+        edge_mm = _EDGE_MM.get(resolution, 3.0)
+        hops = max(1, round(smooth_mm / edge_mm))
+
         tmp_dir = out_dir / "_tmp"
         tmp_dir.mkdir(exist_ok=True)
         n_lh = len(nib.load(str(surf_lh)).agg_data("pointset"))
@@ -280,13 +287,18 @@ def build(
         mask_rh = write_cortex_mask_gii(resolution, "rh", n_rh, tmp_dir / f"cortex_mask_{resolution}_rh.shape.gii")
         smoothed_lhs, smoothed_rhs = [], []
         print(f"[threemica] Smoothing {len(maps)} map(s) at FWHM={smooth_mm}mm "
-              f"on {resolution} for {base} …", flush=True)
+              f"(dilate hops={hops}) on {resolution} for {base} …", flush=True)
         for m in maps:
             out_lh = tmp_dir / f"{m.lh_path.stem}_smooth-{smooth_mm}mm.func.gii"
             out_rh = tmp_dir / f"{m.rh_path.stem}_smooth-{smooth_mm}mm.func.gii"
-            print(f"  · {m.label} L/R …", flush=True)
-            smooth_map(surf_lh, m.lh_path, out_lh, smooth_mm, mask_lh)
-            smooth_map(surf_rh, m.rh_path, out_rh, smooth_mm, mask_rh)
+            method = m.smooth_method
+            print(f"  · {m.label} L/R ({method}) …", flush=True)
+            if method == "dilate":
+                dilate_map(surf_lh, m.lh_path, out_lh, hops)
+                dilate_map(surf_rh, m.rh_path, out_rh, hops)
+            else:  # kernel (default)
+                smooth_map(surf_lh, m.lh_path, out_lh, smooth_mm, mask_lh)
+                smooth_map(surf_rh, m.rh_path, out_rh, smooth_mm, mask_rh)
             smoothed_lhs.append(out_lh)
             smoothed_rhs.append(out_rh)
         map_lhs, map_rhs = smoothed_lhs, smoothed_rhs

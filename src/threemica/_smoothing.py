@@ -29,25 +29,10 @@ def _wb_command() -> str:
 def smooth_map(
     surf_path: Path, metric_path: Path, out_path: Path, fwhm: int, mask_path: Path
 ) -> Path:
-    """Smooth a surface metric with wb_command, restricted to a cortex ROI.
-
-    Sparse maps (e.g. electrode channels) contain NaN at most vertices and
-    real values only at a handful. wb_command propagates NaN through its
-    kernel, so smoothing such input produces the same NaN-dominated output.
-    We therefore replace NaN with 0 before smoothing so the finite values can
-    diffuse into nearby cortex; dense maps (thickness etc.) have no NaN inside
-    the cortex ROI so this is a no-op for them.
+    """Gaussian smooth a continuous surface metric via wb_command, restricted
+    to a cortex ROI. Not suitable for sparse / categorical data (NaN propagates,
+    and averaging IDs is meaningless). For those use ``dilate_map`` instead.
     """
-    arr = nib.load(str(metric_path)).darrays[0].data.astype(np.float32)
-    if np.isnan(arr).any():
-        arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
-        tmp = out_path.parent / (out_path.stem + "_pre.func.gii")
-        gii = nib.GiftiImage(darrays=[nib.gifti.GiftiDataArray(
-            arr, intent="NIFTI_INTENT_NONE", datatype="NIFTI_TYPE_FLOAT32",
-        )])
-        nib.save(gii, str(tmp))
-        metric_path = tmp
-
     cmd = [
         _wb_command(), "-metric-smoothing",
         str(surf_path), str(metric_path), str(fwhm), str(out_path),
@@ -56,6 +41,52 @@ def smooth_map(
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"wb_command -metric-smoothing failed:\n{result.stderr}")
+    return out_path
+
+
+def dilate_map(
+    surf_path: Path, metric_path: Path, out_path: Path, hops: int,
+) -> Path:
+    """Nearest-neighbour graph dilation. Each finite vertex value is copied
+    outward up to ``hops`` mesh edges; on ties, the closer source wins.
+    Original values stay exact (no averaging), so integer / categorical
+    data like electrode channel IDs survive intact.
+    """
+    surf = nib.load(str(surf_path))
+    coords = surf.agg_data("pointset")
+    faces  = surf.agg_data("triangle")
+    n = len(coords)
+
+    # Build mesh adjacency as a list of sets
+    adj = [set() for _ in range(n)]
+    for a, b, c in faces:
+        adj[a].add(b); adj[a].add(c)
+        adj[b].add(a); adj[b].add(c)
+        adj[c].add(a); adj[c].add(b)
+
+    arr = nib.load(str(metric_path)).darrays[0].data.astype(np.float32)
+    src = np.where(np.isfinite(arr))[0]
+    out = np.full(n, np.nan, dtype=np.float32)
+    if len(src) > 0:
+        # Multi-source BFS: each finite vertex propagates its value outward.
+        out[src] = arr[src]
+        frontier = src.tolist()
+        for _ in range(int(hops)):
+            nxt = []
+            for v in frontier:
+                v_val = out[v]
+                for u in adj[v]:
+                    if np.isnan(out[u]):
+                        out[u] = v_val
+                        nxt.append(u)
+            if not nxt:
+                break
+            frontier = nxt
+
+    gii = nib.GiftiImage(darrays=[nib.gifti.GiftiDataArray(
+        out, intent="NIFTI_INTENT_NONE", datatype="NIFTI_TYPE_FLOAT32",
+    )])
+    nib.save(gii, str(out_path))
     return out_path
 
 

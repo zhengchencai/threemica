@@ -50,6 +50,10 @@ def _normalize_tag(entry) -> Dict[str, Any]:
         "unit":  explicit.get("unit",  inferred_unit if inferred_unit != "Value" else ""),
         "cmap":  explicit.get("cmap",  inferred_cmap),
         "scale": float(explicit.get("scale", 1.0)),
+        # smoothing method when --smooth N is given:
+        #   "kernel" (default) → wb_command Gaussian (continuous data)
+        #   "dilate"           → nearest-neighbour graph dilation (sparse/integer)
+        "smooth_method": explicit.get("smooth_method", "kernel"),
     }
 
 
