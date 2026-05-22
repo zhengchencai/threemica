@@ -10,6 +10,9 @@ Parcelsynth top-term lookups, optional smoothing, and a hidden demo.
 <p align="center">
   <img src="docs/demo.gif" alt="threemica demo" width="720">
 </p>
+<p align="center">
+  <a href="docs/demo.mp4">HD MP4 (164 KB)</a>
+</p>
 
 ## Install
 
