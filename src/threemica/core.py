@@ -16,7 +16,6 @@ from threemica.builder import build_payload
 
 _SUB_RE = re.compile(r"^sub-")
 _SES_RE = re.compile(r"^ses-")
-_SUB_FROM_DIR_RE = re.compile(r"^sub-[^_/]+$")
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +114,7 @@ def list_sessions(bids_root: Path, scope: dict, subject: str) -> list[str]:
     """Return the union of `ses-*` folders found under any scope derivative
     for ``subject``."""
     found: set[str] = set()
-    for deriv, spec in scope.items():
+    for deriv in scope:
         if deriv == "surface":
             continue
         sub_path = bids_root / "derivatives" / deriv / subject
@@ -130,7 +129,7 @@ def list_sessions(bids_root: Path, scope: dict, subject: str) -> list[str]:
 def list_subjects(bids_root: Path, scope: dict) -> list[str]:
     """Return the union of `sub-*` folders across all scope derivatives."""
     found: set[str] = set()
-    for deriv, spec in scope.items():
+    for deriv in scope:
         if deriv == "surface":
             continue
         deriv_path = bids_root / "derivatives" / deriv
