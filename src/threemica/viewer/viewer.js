@@ -958,7 +958,7 @@ init();
     if (document.body.classList.contains('theme-white')) {
       document.body.classList.remove('theme-white');
     }
-    currentCmapPos = 'plasma';
+    currentCmapPos = 'magma';
     currentCmapDiv = 'coolwarm';
     hoverEnabled = false;
     cortexOpacity = 1.0; applyOpacity();
