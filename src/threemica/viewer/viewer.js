@@ -42,19 +42,24 @@ function drawColorbar() {
     ctx.fillStyle = `rgb(${r},${g},${b})`;
     ctx.fillRect(0, y, w, 1);
   }
-  // Format colorbar tick text: fixed-point when the magnitude is readable,
-  // scientific (e.g. "5.60e-4") when too small to render in fixed-point.
-  const fmt = v => {
-    const a = Math.abs(v);
-    if (a === 0) return '0';
-    if (a >= 100)   return v.toFixed(0);
-    if (a >= 10)    return v.toFixed(1);
-    if (a >= 0.1)   return v.toFixed(2);
-    if (a >= 0.001) return v.toFixed(4);
-    return v.toExponential(2);
-  };
-  document.getElementById('cb-min').textContent = fmt(mapData.vmin);
-  document.getElementById('cb-max').textContent = fmt(mapData.vmax);
+  // Format vmin/vmax as a pair. Default: 2-decimal fixed point.
+  // If max(|vmin|,|vmax|) < 0.01, use a SHARED exponent (e.g. "5.61×10⁻⁴",
+  // "1.16×10⁻³") so the two ends stay visually comparable.
+  const SUP = ['⁰','¹','²','³','⁴','⁵','⁶','⁷','⁸','⁹'];
+  const supExp = e => (e < 0 ? '⁻' : '') + Math.abs(e).toString().split('').map(d => SUP[+d]).join('');
+  function fmtPair(vmin, vmax) {
+    const big = Math.max(Math.abs(vmin), Math.abs(vmax));
+    if (big === 0) return ['0', '0'];
+    if (big >= 100)  return [vmin.toFixed(0), vmax.toFixed(0)];
+    if (big >= 0.01) return [vmin.toFixed(2), vmax.toFixed(2)];
+    const exp = Math.floor(Math.log10(big));
+    const scale = Math.pow(10, exp);
+    const supStr = '×10' + supExp(exp);
+    return [(vmin/scale).toFixed(2) + supStr, (vmax/scale).toFixed(2) + supStr];
+  }
+  const [tmin, tmax] = fmtPair(mapData.vmin, mapData.vmax);
+  document.getElementById('cb-min').textContent = tmin;
+  document.getElementById('cb-max').textContent = tmax;
   document.getElementById('colorbar-title').textContent = mapData.cb_label;
 }
 
