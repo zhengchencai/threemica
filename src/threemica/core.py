@@ -440,7 +440,9 @@ def _run_interactive(
 ) -> List[Path]:
     all_subjects = list_subjects(bids_root, scope)
     if subjects is None:
-        default = [resolved.subject] if resolved.subject else None
+        # Default: nothing pre-checked (user picks intentionally). If the
+        # caller cd'd into a specific subject, that one stays pre-selected.
+        default = [resolved.subject] if resolved.subject else []
         subjects = _wizard.pick_subjects(all_subjects, default=default)
     if not subjects:
         return []
