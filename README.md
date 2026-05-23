@@ -5,9 +5,8 @@ Three.js HTML reports for MICA-pipeline–style surface maps.
 Point it at a BIDS `derivatives/` folder, edit one tiny
 `derivatives/threemica/threemica_scope.json` to say which maps you care about,
 and `threemica` writes a self-contained HTML viewer per subject — with the
-YBA-696 atlas overlay, Parcelquery and Parcelsynth top-term lookups, optional
-smoothing, and a hidden demo.
-
+YBA-696 atlas overlay, Parcelquery and Parcelsynth top-term lookups, and optional
+smoothing.
 <p align="center">
   <video src="https://github.com/user-attachments/assets/7022b7e6-4ef8-4ff4-b10a-fdf92b49757a" autoplay muted loop playsinline width="100%">
   </video>
@@ -169,5 +168,3 @@ link to it.
 · `T` theme · `Q` hover query · `O` opacity · `M` mesh · `L` lock · `R` reset.
 
 Right-click a vertex to pin the query with Parcelquery + Parcelsynth tables.
-
-There's also a hidden demo: `Enter`, type `poweroverwhelming`, `Enter`.
