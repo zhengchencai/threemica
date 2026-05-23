@@ -9,11 +9,7 @@ YBA-696 atlas overlay, Parcelquery and Parcelsynth top-term lookups, optional
 smoothing, and a hidden demo.
 
 <p align="center">
-  <img src="docs/demo1.gif" alt="threemica demo" width="100%">
-</p>
-
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/4c173394-041d-451b-9dcf-8dab67a4aa4a" autoplay muted loop playsinline width="100%">
+  <video src="https://github.com/user-attachments/assets/7022b7e6-4ef8-4ff4-b10a-fdf92b49757a" autoplay muted loop playsinline width="100%">
   </video>
 </p>
 
