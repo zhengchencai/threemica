@@ -8,7 +8,7 @@ and `threemica` writes a self-contained HTML viewer per subject — with the
 YBA-696 atlas overlay, Parcelquery and Parcelsynth top-term lookups, and optional
 smoothing.
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/7022b7e6-4ef8-4ff4-b10a-fdf92b49757a" autoplay muted loop playsinline disablePictureInPicture controlsList="nodownload" width="100%">
+  <video src="https://raw.githubusercontent.com/zhengchencai/threemica/master/docs/threemica-demo.mp4" autoplay muted loop playsinline disablePictureInPicture controlsList="nodownload" width="100%">
   </video>
 </p>
 
