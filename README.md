@@ -8,9 +8,8 @@ and `threemica` writes a self-contained HTML viewer per subject — with the
 YBA-696 atlas overlay, Parcelquery and Parcelsynth top-term lookups, and optional
 smoothing.
 <p align="center">
-  <a href="docs/demo.mp4">
-    <img src="docs/demo-poster.jpg" alt="threemica demo video" width="100%">
-  </a>
+  <video src="https://raw.githubusercontent.com/zhengchencai/threemica/master/docs/demo.mp4" autoplay muted loop playsinline controls width="100%">
+  </video>
 </p>
 
 ## Install
