@@ -7,10 +7,8 @@ Point it at a BIDS `derivatives/` folder, edit one tiny
 and `threemica` writes a self-contained HTML viewer per subject — with the
 YBA-696 atlas overlay, Parcelquery and Parcelsynth top-term lookups, and optional
 smoothing.
-<p align="center">
-  <video src="https://raw.githubusercontent.com/zhengchencai/threemica/master/docs/demo.mp4" autoplay muted loop playsinline controls width="100%">
-  </video>
-</p>
+
+https://github.com/user-attachments/assets/cc7f325d-a3d5-4365-8f71-1a81b13e959f
 
 ## Install
 
